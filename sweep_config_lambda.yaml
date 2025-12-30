@@ -1,0 +1,32 @@
+program: <train_script_path>
+method: grid
+metric:
+  goal: minimize
+  name: avg_loss
+parameters:
+  epochs:
+    values: [1000]
+  batch-size:
+    values: [16]
+  lr:
+    values: [0.005]
+  wd:
+    values: [0.0001]
+  scheduler-step-size:
+    values: [40]
+  scheduler-gamma:
+    values: [0.8]
+  model-type:
+    values: ["tfno", "fno"]
+  n-train:
+    values: [700]
+  n-tests:
+    values: ["100"]
+  losses:
+    values: ["h1_laplacian"]
+  lam1:
+    values: [0.005, 0.01, 0.05, 0.1]
+  lam2:
+    values: [0.1]
+  loading-cond:
+    values: ["[0,1]", "[1,0]"]
