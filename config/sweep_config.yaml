@@ -1,8 +1,8 @@
-program: <train_script_path>
+program: code/train.py
 method: grid
 metric:
   goal: minimize
-  name: avg_loss
+  name: default 
 parameters:
   epochs:
     values: [1000]
@@ -17,13 +17,13 @@ parameters:
   scheduler-gamma:
     values: [0.8]
   model-type:
-    values: ["tfno", "fno"]
+    values: ["fno"]
   n-train:
-    values: [700]
+    values: [50]
   n-tests:
-    values: ["100"]
+    values: [10]
   losses:
-    values: ["l2", "h1", "h1beta_u", "h1betau_laplacian", "h2", "macro_perm"]
+    values: ["l2"]
   lam1:
     values: [0.02]
   lam2:

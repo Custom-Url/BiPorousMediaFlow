@@ -1,0 +1,228 @@
+{
+    "os": "Linux-5.15.0-134-generic-x86_64-with-glibc2.17",
+    "python": "3.8.16",
+    "heartbeatAt": "2026-03-27T16:48:54.931709",
+    "startedAt": "2026-03-27T16:48:53.804785",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "code/train.py",
+    "codePathLocal": "code/train.py",
+    "codePath": "code/train.py",
+    "git": {
+        "remote": "https://github.com/Custom-Url/BiPorousMediaFlow.git",
+        "commit": "7ccbb6bcf3350fbb96fcebc4a033471a22ea8d65"
+    },
+    "email": "djgray02@gmail.com",
+    "root": "/mnt/data/dg765/BiPorousMediaFlow",
+    "host": "enpc-0357",
+    "username": "dg765",
+    "executable": "/mnt/data/dg765/conda_envs/bmf/bin/python",
+    "cpu_count": 18,
+    "cpu_count_logical": 36,
+    "cpu_freq": {
+        "current": 2.9516388888888887,
+        "min": 1200.0,
+        "max": 4633.333333333333
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4800.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4700.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4700.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4800.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4800.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4700.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4700.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 1.345,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4800.0
+        },
+        {
+            "current": 3.0,
+            "min": 1200.0,
+            "max": 4600.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 935.3257141113281,
+            "used": 211.0548210144043
+        }
+    },
+    "gpu": "NVIDIA RTX A6000",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA RTX A6000",
+            "memory_total": 51527024640
+        }
+    ],
+    "memory": {
+        "total": 188.38529205322266
+    }
+}

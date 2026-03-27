@@ -1,0 +1,75 @@
+2026-03-27 16:46:48,720 INFO    StreamThr :1136390 [internal.py:wandb_internal():85] W&B internal server running at pid: 1136390, started at: 2026-03-27 16:46:48.719467
+2026-03-27 16:46:48,722 DEBUG   HandlerThread:1136390 [handler.py:handle_request():158] handle_request: status
+2026-03-27 16:46:48,743 INFO    WriterThread:1136390 [datastore.py:open_for_write():87] open: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/run-mromr00q.wandb
+2026-03-27 16:46:48,744 DEBUG   SenderThread:1136390 [sender.py:send():378] send: header
+2026-03-27 16:46:48,819 DEBUG   SenderThread:1136390 [sender.py:send():378] send: run
+2026-03-27 16:46:49,630 INFO    SenderThread:1136390 [dir_watcher.py:__init__():211] watching files in: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/files
+2026-03-27 16:46:49,630 INFO    SenderThread:1136390 [sender.py:_start_run_threads():1123] run started: mromr00q with start time 1774630008.717725
+2026-03-27 16:46:49,654 DEBUG   HandlerThread:1136390 [handler.py:handle_request():158] handle_request: check_version
+2026-03-27 16:46:49,655 DEBUG   SenderThread:1136390 [sender.py:send_request():405] send_request: check_version
+2026-03-27 16:46:49,810 DEBUG   HandlerThread:1136390 [handler.py:handle_request():158] handle_request: run_start
+2026-03-27 16:46:49,843 DEBUG   HandlerThread:1136390 [system_info.py:__init__():26] System info init
+2026-03-27 16:46:49,843 DEBUG   HandlerThread:1136390 [system_info.py:__init__():41] System info init done
+2026-03-27 16:46:49,843 INFO    HandlerThread:1136390 [system_monitor.py:start():194] Starting system monitor
+2026-03-27 16:46:49,843 INFO    SystemMonitor:1136390 [system_monitor.py:_start():158] Starting system asset monitoring threads
+2026-03-27 16:46:49,844 INFO    HandlerThread:1136390 [system_monitor.py:probe():214] Collecting system info
+2026-03-27 16:46:49,844 INFO    SystemMonitor:1136390 [interfaces.py:start():188] Started cpu monitoring
+2026-03-27 16:46:49,845 INFO    SystemMonitor:1136390 [interfaces.py:start():188] Started disk monitoring
+2026-03-27 16:46:49,847 INFO    SystemMonitor:1136390 [interfaces.py:start():188] Started gpu monitoring
+2026-03-27 16:46:49,849 INFO    SystemMonitor:1136390 [interfaces.py:start():188] Started memory monitoring
+2026-03-27 16:46:49,850 INFO    SystemMonitor:1136390 [interfaces.py:start():188] Started network monitoring
+2026-03-27 16:46:49,918 DEBUG   HandlerThread:1136390 [system_info.py:probe():150] Probing system
+2026-03-27 16:46:49,920 DEBUG   HandlerThread:1136390 [system_info.py:_probe_git():135] Probing git
+2026-03-27 16:46:49,945 DEBUG   HandlerThread:1136390 [system_info.py:_probe_git():143] Probing git done
+2026-03-27 16:46:49,946 DEBUG   HandlerThread:1136390 [system_info.py:probe():198] Probing system done
+2026-03-27 16:46:49,946 DEBUG   HandlerThread:1136390 [system_monitor.py:probe():223] {'os': 'Linux-5.15.0-134-generic-x86_64-with-glibc2.17', 'python': '3.8.16', 'heartbeatAt': '2026-03-27T16:46:49.919046', 'startedAt': '2026-03-27T16:46:48.701900', 'docker': None, 'cuda': None, 'args': (), 'state': 'running', 'program': 'code/train.py', 'codePathLocal': 'code/train.py', 'codePath': 'code/train.py', 'git': {'remote': 'https://github.com/Custom-Url/BiPorousMediaFlow.git', 'commit': '7ccbb6bcf3350fbb96fcebc4a033471a22ea8d65'}, 'email': 'djgray02@gmail.com', 'root': '/mnt/data/dg765/BiPorousMediaFlow', 'host': 'enpc-0357', 'username': 'dg765', 'executable': '/mnt/data/dg765/conda_envs/bmf/bin/python', 'cpu_count': 18, 'cpu_count_logical': 36, 'cpu_freq': {'current': 2.8499999999999996, 'min': 1200.0, 'max': 4633.333333333333}, 'cpu_freq_per_core': [{'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4800.0}, {'current': 1.2, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4700.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4700.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.686, 'min': 1200.0, 'max': 4800.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4800.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4700.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4700.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4800.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}], 'disk': {'/': {'total': 935.3257141113281, 'used': 211.05464553833008}}, 'gpu': 'NVIDIA RTX A6000', 'gpu_count': 1, 'gpu_devices': [{'name': 'NVIDIA RTX A6000', 'memory_total': 51527024640}], 'memory': {'total': 188.38529205322266}}
+2026-03-27 16:46:49,946 INFO    HandlerThread:1136390 [system_monitor.py:probe():224] Finished collecting system info
+2026-03-27 16:46:49,946 INFO    HandlerThread:1136390 [system_monitor.py:probe():227] Publishing system info
+2026-03-27 16:46:49,946 DEBUG   HandlerThread:1136390 [system_info.py:_save_conda():207] Saving list of conda packages installed into the current environment
+2026-03-27 16:46:50,634 INFO    Thread-12 :1136390 [dir_watcher.py:_on_file_created():271] file/dir created: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/files/conda-environment.yaml
+2026-03-27 16:46:51,421 DEBUG   HandlerThread:1136390 [system_info.py:_save_conda():222] Saving conda packages done
+2026-03-27 16:46:51,422 INFO    HandlerThread:1136390 [system_monitor.py:probe():229] Finished publishing system info
+2026-03-27 16:46:51,434 DEBUG   SenderThread:1136390 [sender.py:send():378] send: files
+2026-03-27 16:46:51,435 INFO    SenderThread:1136390 [sender.py:_save_file():1389] saving file wandb-metadata.json with policy now
+2026-03-27 16:46:51,560 DEBUG   HandlerThread:1136390 [handler.py:handle_request():158] handle_request: python_packages
+2026-03-27 16:46:51,561 DEBUG   HandlerThread:1136390 [handler.py:handle_request():158] handle_request: stop_status
+2026-03-27 16:46:51,561 DEBUG   SenderThread:1136390 [sender.py:send_request():405] send_request: python_packages
+2026-03-27 16:46:51,562 DEBUG   SenderThread:1136390 [sender.py:send_request():405] send_request: stop_status
+2026-03-27 16:46:51,631 INFO    Thread-12 :1136390 [dir_watcher.py:_on_file_modified():288] file/dir modified: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/files/conda-environment.yaml
+2026-03-27 16:46:51,631 INFO    Thread-12 :1136390 [dir_watcher.py:_on_file_created():271] file/dir created: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/files/requirements.txt
+2026-03-27 16:46:51,632 INFO    Thread-12 :1136390 [dir_watcher.py:_on_file_created():271] file/dir created: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/files/wandb-metadata.json
+2026-03-27 16:46:51,881 DEBUG   SenderThread:1136390 [sender.py:send():378] send: telemetry
+2026-03-27 16:46:51,881 DEBUG   SenderThread:1136390 [sender.py:send():378] send: telemetry
+2026-03-27 16:46:51,881 DEBUG   SenderThread:1136390 [sender.py:send():378] send: run
+2026-03-27 16:46:52,018 INFO    wandb-upload_0:1136390 [upload_job.py:push():130] Uploaded file /tmp/tmp9z9f57ztwandb/tkt1uvqs-wandb-metadata.json
+2026-03-27 16:46:52,632 INFO    Thread-12 :1136390 [dir_watcher.py:_on_file_modified():288] file/dir modified: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/files/config.yaml
+2026-03-27 16:46:55,294 DEBUG   HandlerThread:1136390 [handler.py:handle_request():158] handle_request: poll_exit
+2026-03-27 16:47:03,860 INFO    memory    :1136390 [interfaces.py:monitor():138] Process proc.memory.rssMB has exited.
+2026-03-27 16:47:03,860 DEBUG   SystemMonitor:1136390 [system_monitor.py:_start():172] Starting system metrics aggregation loop
+2026-03-27 16:47:03,861 DEBUG   SystemMonitor:1136390 [system_monitor.py:_start():179] Finished system metrics aggregation loop
+2026-03-27 16:47:03,861 DEBUG   SystemMonitor:1136390 [system_monitor.py:_start():183] Publishing last batch of metrics
+2026-03-27 16:47:05,741 WARNING StreamThr :1136390 [internal.py:is_dead():413] Internal process exiting, parent pid 1135196 disappeared
+2026-03-27 16:47:05,742 ERROR   StreamThr :1136390 [internal.py:wandb_internal():151] Internal process shutdown.
+2026-03-27 16:47:05,864 INFO    HandlerThread:1136390 [handler.py:finish():882] shutting down handler
+2026-03-27 16:47:05,864 INFO    HandlerThread:1136390 [system_monitor.py:finish():203] Stopping system monitor
+2026-03-27 16:47:05,864 INFO    HandlerThread:1136390 [interfaces.py:finish():200] Joined cpu monitor
+2026-03-27 16:47:05,864 INFO    HandlerThread:1136390 [interfaces.py:finish():200] Joined disk monitor
+2026-03-27 16:47:05,865 INFO    WriterThread:1136390 [datastore.py:close():296] close: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/run-mromr00q.wandb
+2026-03-27 16:47:05,865 INFO    HandlerThread:1136390 [interfaces.py:finish():200] Joined gpu monitor
+2026-03-27 16:47:05,866 INFO    HandlerThread:1136390 [interfaces.py:finish():200] Joined memory monitor
+2026-03-27 16:47:05,866 INFO    HandlerThread:1136390 [interfaces.py:finish():200] Joined network monitor
+2026-03-27 16:47:13,494 INFO    SenderThread:1136390 [sender.py:send_run():996] updated run: mromr00q
+2026-03-27 16:47:13,495 INFO    SenderThread:1136390 [sender.py:finish():1545] shutting down sender
+2026-03-27 16:47:13,495 INFO    SenderThread:1136390 [dir_watcher.py:finish():358] shutting down directory watcher
+2026-03-27 16:47:13,637 INFO    SenderThread:1136390 [dir_watcher.py:finish():388] scan: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/files
+2026-03-27 16:47:13,637 INFO    SenderThread:1136390 [dir_watcher.py:finish():402] scan save: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/files/config.yaml config.yaml
+2026-03-27 16:47:13,638 INFO    SenderThread:1136390 [dir_watcher.py:finish():402] scan save: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/files/conda-environment.yaml conda-environment.yaml
+2026-03-27 16:47:13,638 INFO    SenderThread:1136390 [dir_watcher.py:finish():402] scan save: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/files/wandb-metadata.json wandb-metadata.json
+2026-03-27 16:47:13,643 INFO    SenderThread:1136390 [dir_watcher.py:finish():402] scan save: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/files/requirements.txt requirements.txt
+2026-03-27 16:47:13,648 INFO    SenderThread:1136390 [file_pusher.py:finish():169] shutting down file pusher
+2026-03-27 16:47:13,649 INFO    SenderThread:1136390 [file_pusher.py:join():175] waiting for file pusher
+2026-03-27 16:47:14,028 INFO    wandb-upload_0:1136390 [upload_job.py:push():130] Uploaded file /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/files/config.yaml
+2026-03-27 16:47:14,091 INFO    wandb-upload_1:1136390 [upload_job.py:push():130] Uploaded file /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/files/conda-environment.yaml
+2026-03-27 16:47:14,153 INFO    wandb-upload_2:1136390 [upload_job.py:push():130] Uploaded file /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164648-mromr00q/files/requirements.txt
+2026-03-27 16:47:14,651 INFO    SenderThread:1136390 [file_stream.py:finish():601] file stream finish called
+2026-03-27 16:47:31,874 INFO    SenderThread:1136390 [file_stream.py:finish():605] file stream finish is done

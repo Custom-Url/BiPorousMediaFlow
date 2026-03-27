@@ -111,9 +111,9 @@ def load_stokesbrinkman(
 
     indices = torch.randperm(len(x))
     idx_train = indices[:n_train]
-    n_test = n_tests[0]  # currently, only 1 resolution possible
+    n_test = n_tests  # currently, only 1 resolution possible
     idx_test = indices[n_train : n_train + n_test]  # Randomly picking train and test
-        
+
     if loading_cond == "[1,0]":
         x_train = x[idx_train, :, :, :, 0].float().clone()
         y_train = y[idx_train, :, :, :, 0].float().clone()
@@ -167,7 +167,7 @@ def load_stokesbrinkman(
     test_batch_size = test_batch_sizes[0]
     test_resolution = test_resolutions[0]
 
-    
+
     # Input encoding
     if encode_input:
         # Assuming encoding is channel-wise for simplicity

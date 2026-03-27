@@ -1,0 +1,190 @@
+2026-03-27 16:49:32,305 INFO    StreamThr :1141325 [internal.py:wandb_internal():85] W&B internal server running at pid: 1141325, started at: 2026-03-27 16:49:32.304336
+2026-03-27 16:49:32,308 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: status
+2026-03-27 16:49:32,332 INFO    WriterThread:1141325 [datastore.py:open_for_write():87] open: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/run-smhx8m4q.wandb
+2026-03-27 16:49:32,333 DEBUG   SenderThread:1141325 [sender.py:send():378] send: header
+2026-03-27 16:49:32,412 DEBUG   SenderThread:1141325 [sender.py:send():378] send: run
+2026-03-27 16:49:33,149 INFO    SenderThread:1141325 [dir_watcher.py:__init__():211] watching files in: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files
+2026-03-27 16:49:33,149 INFO    SenderThread:1141325 [sender.py:_start_run_threads():1123] run started: smhx8m4q with start time 1774630172.30262
+2026-03-27 16:49:33,178 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: check_version
+2026-03-27 16:49:33,179 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: check_version
+2026-03-27 16:49:33,342 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: run_start
+2026-03-27 16:49:33,375 DEBUG   HandlerThread:1141325 [system_info.py:__init__():26] System info init
+2026-03-27 16:49:33,376 DEBUG   HandlerThread:1141325 [system_info.py:__init__():41] System info init done
+2026-03-27 16:49:33,376 INFO    HandlerThread:1141325 [system_monitor.py:start():194] Starting system monitor
+2026-03-27 16:49:33,376 INFO    SystemMonitor:1141325 [system_monitor.py:_start():158] Starting system asset monitoring threads
+2026-03-27 16:49:33,376 INFO    HandlerThread:1141325 [system_monitor.py:probe():214] Collecting system info
+2026-03-27 16:49:33,377 INFO    SystemMonitor:1141325 [interfaces.py:start():188] Started cpu monitoring
+2026-03-27 16:49:33,379 INFO    SystemMonitor:1141325 [interfaces.py:start():188] Started disk monitoring
+2026-03-27 16:49:33,380 INFO    SystemMonitor:1141325 [interfaces.py:start():188] Started gpu monitoring
+2026-03-27 16:49:33,381 INFO    SystemMonitor:1141325 [interfaces.py:start():188] Started memory monitoring
+2026-03-27 16:49:33,383 INFO    SystemMonitor:1141325 [interfaces.py:start():188] Started network monitoring
+2026-03-27 16:49:33,410 DEBUG   HandlerThread:1141325 [system_info.py:probe():150] Probing system
+2026-03-27 16:49:33,411 DEBUG   HandlerThread:1141325 [system_info.py:_probe_git():135] Probing git
+2026-03-27 16:49:33,437 DEBUG   HandlerThread:1141325 [system_info.py:_probe_git():143] Probing git done
+2026-03-27 16:49:33,438 DEBUG   HandlerThread:1141325 [system_info.py:probe():198] Probing system done
+2026-03-27 16:49:33,438 DEBUG   HandlerThread:1141325 [system_monitor.py:probe():223] {'os': 'Linux-5.15.0-134-generic-x86_64-with-glibc2.17', 'python': '3.8.16', 'heartbeatAt': '2026-03-27T16:49:33.410434', 'startedAt': '2026-03-27T16:49:32.279080', 'docker': None, 'cuda': None, 'args': (), 'state': 'running', 'program': 'code/train.py', 'codePathLocal': 'code/train.py', 'codePath': 'code/train.py', 'git': {'remote': 'https://github.com/Custom-Url/BiPorousMediaFlow.git', 'commit': '7ccbb6bcf3350fbb96fcebc4a033471a22ea8d65'}, 'email': 'djgray02@gmail.com', 'root': '/mnt/data/dg765/BiPorousMediaFlow', 'host': 'enpc-0357', 'username': 'dg765', 'executable': '/mnt/data/dg765/conda_envs/bmf/bin/python', 'cpu_count': 18, 'cpu_count_logical': 36, 'cpu_freq': {'current': 2.9525833333333336, 'min': 1200.0, 'max': 4633.333333333333}, 'cpu_freq_per_core': [{'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 1.447, 'min': 1200.0, 'max': 4800.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4700.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4700.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4800.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4800.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4700.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4700.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}, {'current': 3.0, 'min': 1200.0, 'max': 4800.0}, {'current': 3.0, 'min': 1200.0, 'max': 4600.0}], 'disk': {'/': {'total': 935.3257141113281, 'used': 211.05486679077148}}, 'gpu': 'NVIDIA RTX A6000', 'gpu_count': 1, 'gpu_devices': [{'name': 'NVIDIA RTX A6000', 'memory_total': 51527024640}], 'memory': {'total': 188.38529205322266}}
+2026-03-27 16:49:33,438 INFO    HandlerThread:1141325 [system_monitor.py:probe():224] Finished collecting system info
+2026-03-27 16:49:33,438 INFO    HandlerThread:1141325 [system_monitor.py:probe():227] Publishing system info
+2026-03-27 16:49:33,438 DEBUG   HandlerThread:1141325 [system_info.py:_save_conda():207] Saving list of conda packages installed into the current environment
+2026-03-27 16:49:34,153 INFO    Thread-12 :1141325 [dir_watcher.py:_on_file_created():271] file/dir created: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/conda-environment.yaml
+2026-03-27 16:49:34,965 DEBUG   HandlerThread:1141325 [system_info.py:_save_conda():222] Saving conda packages done
+2026-03-27 16:49:34,966 INFO    HandlerThread:1141325 [system_monitor.py:probe():229] Finished publishing system info
+2026-03-27 16:49:34,978 DEBUG   SenderThread:1141325 [sender.py:send():378] send: files
+2026-03-27 16:49:34,978 INFO    SenderThread:1141325 [sender.py:_save_file():1389] saving file wandb-metadata.json with policy now
+2026-03-27 16:49:35,102 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: python_packages
+2026-03-27 16:49:35,102 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: stop_status
+2026-03-27 16:49:35,102 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: python_packages
+2026-03-27 16:49:35,105 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: stop_status
+2026-03-27 16:49:35,150 INFO    Thread-12 :1141325 [dir_watcher.py:_on_file_modified():288] file/dir modified: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/conda-environment.yaml
+2026-03-27 16:49:35,150 INFO    Thread-12 :1141325 [dir_watcher.py:_on_file_created():271] file/dir created: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/wandb-metadata.json
+2026-03-27 16:49:35,151 INFO    Thread-12 :1141325 [dir_watcher.py:_on_file_created():271] file/dir created: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/requirements.txt
+2026-03-27 16:49:35,427 DEBUG   SenderThread:1141325 [sender.py:send():378] send: telemetry
+2026-03-27 16:49:35,427 DEBUG   SenderThread:1141325 [sender.py:send():378] send: telemetry
+2026-03-27 16:49:35,427 DEBUG   SenderThread:1141325 [sender.py:send():378] send: run
+2026-03-27 16:49:35,580 INFO    wandb-upload_0:1141325 [upload_job.py:push():130] Uploaded file /tmp/tmpso7o43yfwandb/nd9ysf4w-wandb-metadata.json
+2026-03-27 16:49:35,823 INFO    SenderThread:1141325 [sender.py:send_run():996] updated run: smhx8m4q
+2026-03-27 16:49:36,150 INFO    Thread-12 :1141325 [dir_watcher.py:_on_file_modified():288] file/dir modified: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/config.yaml
+2026-03-27 16:49:37,824 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: status_report
+2026-03-27 16:49:37,862 DEBUG   SenderThread:1141325 [sender.py:send():378] send: telemetry
+2026-03-27 16:49:37,862 DEBUG   SenderThread:1141325 [sender.py:send():378] send: exit
+2026-03-27 16:49:37,862 INFO    SenderThread:1141325 [sender.py:send_exit():585] handling exit code: 1
+2026-03-27 16:49:37,862 INFO    SenderThread:1141325 [sender.py:send_exit():587] handling runtime: 4
+2026-03-27 16:49:37,864 INFO    SenderThread:1141325 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2026-03-27 16:49:37,864 INFO    SenderThread:1141325 [sender.py:send_exit():593] send defer
+2026-03-27 16:49:37,865 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: defer
+2026-03-27 16:49:37,865 INFO    HandlerThread:1141325 [handler.py:handle_request_defer():184] handle defer: 0
+2026-03-27 16:49:37,865 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: defer
+2026-03-27 16:49:37,865 INFO    SenderThread:1141325 [sender.py:send_request_defer():609] handle sender defer: 0
+2026-03-27 16:49:37,865 INFO    SenderThread:1141325 [sender.py:transition_state():613] send defer: 1
+2026-03-27 16:49:37,866 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: defer
+2026-03-27 16:49:37,866 INFO    HandlerThread:1141325 [handler.py:handle_request_defer():184] handle defer: 1
+2026-03-27 16:49:37,866 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: defer
+2026-03-27 16:49:37,866 INFO    SenderThread:1141325 [sender.py:send_request_defer():609] handle sender defer: 1
+2026-03-27 16:49:37,866 INFO    SenderThread:1141325 [sender.py:transition_state():613] send defer: 2
+2026-03-27 16:49:37,866 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: defer
+2026-03-27 16:49:37,866 INFO    HandlerThread:1141325 [handler.py:handle_request_defer():184] handle defer: 2
+2026-03-27 16:49:37,866 INFO    HandlerThread:1141325 [system_monitor.py:finish():203] Stopping system monitor
+2026-03-27 16:49:37,867 DEBUG   SystemMonitor:1141325 [system_monitor.py:_start():172] Starting system metrics aggregation loop
+2026-03-27 16:49:37,868 DEBUG   SystemMonitor:1141325 [system_monitor.py:_start():179] Finished system metrics aggregation loop
+2026-03-27 16:49:37,868 INFO    HandlerThread:1141325 [interfaces.py:finish():200] Joined cpu monitor
+2026-03-27 16:49:37,868 DEBUG   SystemMonitor:1141325 [system_monitor.py:_start():183] Publishing last batch of metrics
+2026-03-27 16:49:37,868 INFO    HandlerThread:1141325 [interfaces.py:finish():200] Joined disk monitor
+2026-03-27 16:49:37,976 INFO    HandlerThread:1141325 [interfaces.py:finish():200] Joined gpu monitor
+2026-03-27 16:49:37,976 INFO    HandlerThread:1141325 [interfaces.py:finish():200] Joined memory monitor
+2026-03-27 16:49:37,977 INFO    HandlerThread:1141325 [interfaces.py:finish():200] Joined network monitor
+2026-03-27 16:49:37,977 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: defer
+2026-03-27 16:49:37,977 INFO    SenderThread:1141325 [sender.py:send_request_defer():609] handle sender defer: 2
+2026-03-27 16:49:37,977 INFO    SenderThread:1141325 [sender.py:transition_state():613] send defer: 3
+2026-03-27 16:49:37,977 DEBUG   SenderThread:1141325 [sender.py:send():378] send: stats
+2026-03-27 16:49:37,978 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: defer
+2026-03-27 16:49:37,978 INFO    HandlerThread:1141325 [handler.py:handle_request_defer():184] handle defer: 3
+2026-03-27 16:49:37,978 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: defer
+2026-03-27 16:49:37,978 INFO    SenderThread:1141325 [sender.py:send_request_defer():609] handle sender defer: 3
+2026-03-27 16:49:37,978 INFO    SenderThread:1141325 [sender.py:transition_state():613] send defer: 4
+2026-03-27 16:49:37,978 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: defer
+2026-03-27 16:49:37,978 INFO    HandlerThread:1141325 [handler.py:handle_request_defer():184] handle defer: 4
+2026-03-27 16:49:37,979 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: defer
+2026-03-27 16:49:37,979 INFO    SenderThread:1141325 [sender.py:send_request_defer():609] handle sender defer: 4
+2026-03-27 16:49:37,979 INFO    SenderThread:1141325 [sender.py:transition_state():613] send defer: 5
+2026-03-27 16:49:37,979 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: defer
+2026-03-27 16:49:37,979 INFO    HandlerThread:1141325 [handler.py:handle_request_defer():184] handle defer: 5
+2026-03-27 16:49:37,979 DEBUG   SenderThread:1141325 [sender.py:send():378] send: summary
+2026-03-27 16:49:37,979 INFO    SenderThread:1141325 [sender.py:_save_file():1389] saving file wandb-summary.json with policy end
+2026-03-27 16:49:37,980 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: defer
+2026-03-27 16:49:37,980 INFO    SenderThread:1141325 [sender.py:send_request_defer():609] handle sender defer: 5
+2026-03-27 16:49:37,980 INFO    SenderThread:1141325 [sender.py:transition_state():613] send defer: 6
+2026-03-27 16:49:37,980 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: defer
+2026-03-27 16:49:37,980 INFO    HandlerThread:1141325 [handler.py:handle_request_defer():184] handle defer: 6
+2026-03-27 16:49:37,980 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: defer
+2026-03-27 16:49:37,980 INFO    SenderThread:1141325 [sender.py:send_request_defer():609] handle sender defer: 6
+2026-03-27 16:49:37,983 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: status_report
+2026-03-27 16:49:38,152 INFO    Thread-12 :1141325 [dir_watcher.py:_on_file_created():271] file/dir created: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/wandb-summary.json
+2026-03-27 16:49:38,152 INFO    Thread-12 :1141325 [dir_watcher.py:_on_file_created():271] file/dir created: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/output.log
+2026-03-27 16:49:38,388 INFO    SenderThread:1141325 [sender.py:transition_state():613] send defer: 7
+2026-03-27 16:49:38,388 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: defer
+2026-03-27 16:49:38,388 INFO    HandlerThread:1141325 [handler.py:handle_request_defer():184] handle defer: 7
+2026-03-27 16:49:38,389 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: defer
+2026-03-27 16:49:38,389 INFO    SenderThread:1141325 [sender.py:send_request_defer():609] handle sender defer: 7
+2026-03-27 16:49:38,859 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: poll_exit
+2026-03-27 16:49:39,152 INFO    Thread-12 :1141325 [dir_watcher.py:_on_file_modified():288] file/dir modified: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/config.yaml
+2026-03-27 16:49:39,872 INFO    SenderThread:1141325 [sender.py:transition_state():613] send defer: 8
+2026-03-27 16:49:39,873 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: poll_exit
+2026-03-27 16:49:39,873 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: defer
+2026-03-27 16:49:39,874 INFO    HandlerThread:1141325 [handler.py:handle_request_defer():184] handle defer: 8
+2026-03-27 16:49:39,874 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: defer
+2026-03-27 16:49:39,875 INFO    SenderThread:1141325 [sender.py:send_request_defer():609] handle sender defer: 8
+2026-03-27 16:49:39,875 INFO    SenderThread:1141325 [sender.py:transition_state():613] send defer: 9
+2026-03-27 16:49:39,875 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: defer
+2026-03-27 16:49:39,875 INFO    HandlerThread:1141325 [handler.py:handle_request_defer():184] handle defer: 9
+2026-03-27 16:49:39,876 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: defer
+2026-03-27 16:49:39,876 INFO    SenderThread:1141325 [sender.py:send_request_defer():609] handle sender defer: 9
+2026-03-27 16:49:39,876 INFO    SenderThread:1141325 [dir_watcher.py:finish():358] shutting down directory watcher
+2026-03-27 16:49:40,153 INFO    Thread-12 :1141325 [dir_watcher.py:_on_file_modified():288] file/dir modified: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/output.log
+2026-03-27 16:49:40,154 INFO    SenderThread:1141325 [dir_watcher.py:finish():388] scan: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files
+2026-03-27 16:49:40,155 INFO    SenderThread:1141325 [dir_watcher.py:finish():402] scan save: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/wandb-summary.json wandb-summary.json
+2026-03-27 16:49:40,155 INFO    SenderThread:1141325 [dir_watcher.py:finish():402] scan save: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/output.log output.log
+2026-03-27 16:49:40,155 INFO    SenderThread:1141325 [dir_watcher.py:finish():402] scan save: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/config.yaml config.yaml
+2026-03-27 16:49:40,155 INFO    SenderThread:1141325 [dir_watcher.py:finish():402] scan save: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/conda-environment.yaml conda-environment.yaml
+2026-03-27 16:49:40,169 INFO    SenderThread:1141325 [dir_watcher.py:finish():402] scan save: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/wandb-metadata.json wandb-metadata.json
+2026-03-27 16:49:40,169 INFO    SenderThread:1141325 [dir_watcher.py:finish():402] scan save: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/requirements.txt requirements.txt
+2026-03-27 16:49:40,174 INFO    SenderThread:1141325 [sender.py:transition_state():613] send defer: 10
+2026-03-27 16:49:40,179 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: defer
+2026-03-27 16:49:40,179 INFO    HandlerThread:1141325 [handler.py:handle_request_defer():184] handle defer: 10
+2026-03-27 16:49:40,179 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: defer
+2026-03-27 16:49:40,180 INFO    SenderThread:1141325 [sender.py:send_request_defer():609] handle sender defer: 10
+2026-03-27 16:49:40,180 INFO    SenderThread:1141325 [file_pusher.py:finish():169] shutting down file pusher
+2026-03-27 16:49:40,575 INFO    wandb-upload_0:1141325 [upload_job.py:push():130] Uploaded file /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/wandb-summary.json
+2026-03-27 16:49:40,655 INFO    wandb-upload_2:1141325 [upload_job.py:push():130] Uploaded file /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/config.yaml
+2026-03-27 16:49:40,666 INFO    wandb-upload_1:1141325 [upload_job.py:push():130] Uploaded file /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/output.log
+2026-03-27 16:49:40,687 INFO    wandb-upload_4:1141325 [upload_job.py:push():130] Uploaded file /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/requirements.txt
+2026-03-27 16:49:40,717 INFO    wandb-upload_3:1141325 [upload_job.py:push():130] Uploaded file /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/files/conda-environment.yaml
+2026-03-27 16:49:40,860 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: poll_exit
+2026-03-27 16:49:40,861 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: poll_exit
+2026-03-27 16:49:40,918 INFO    Thread-11 :1141325 [sender.py:transition_state():613] send defer: 11
+2026-03-27 16:49:40,918 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: defer
+2026-03-27 16:49:40,918 INFO    HandlerThread:1141325 [handler.py:handle_request_defer():184] handle defer: 11
+2026-03-27 16:49:40,919 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: defer
+2026-03-27 16:49:40,919 INFO    SenderThread:1141325 [sender.py:send_request_defer():609] handle sender defer: 11
+2026-03-27 16:49:40,919 INFO    SenderThread:1141325 [file_pusher.py:join():175] waiting for file pusher
+2026-03-27 16:49:40,920 INFO    SenderThread:1141325 [sender.py:transition_state():613] send defer: 12
+2026-03-27 16:49:40,920 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: defer
+2026-03-27 16:49:40,920 INFO    HandlerThread:1141325 [handler.py:handle_request_defer():184] handle defer: 12
+2026-03-27 16:49:40,921 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: defer
+2026-03-27 16:49:40,921 INFO    SenderThread:1141325 [sender.py:send_request_defer():609] handle sender defer: 12
+2026-03-27 16:49:40,921 INFO    SenderThread:1141325 [file_stream.py:finish():601] file stream finish called
+2026-03-27 16:49:41,861 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: poll_exit
+2026-03-27 16:49:46,863 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: keepalive
+2026-03-27 16:49:51,865 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: keepalive
+2026-03-27 16:49:56,868 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: keepalive
+2026-03-27 16:50:01,870 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: keepalive
+2026-03-27 16:50:06,873 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: keepalive
+2026-03-27 16:50:11,875 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: keepalive
+2026-03-27 16:50:16,878 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: keepalive
+2026-03-27 16:50:17,789 INFO    SenderThread:1141325 [file_stream.py:finish():605] file stream finish is done
+2026-03-27 16:50:17,789 INFO    SenderThread:1141325 [sender.py:transition_state():613] send defer: 13
+2026-03-27 16:50:17,789 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: poll_exit
+2026-03-27 16:50:17,790 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: defer
+2026-03-27 16:50:17,790 INFO    HandlerThread:1141325 [handler.py:handle_request_defer():184] handle defer: 13
+2026-03-27 16:50:17,791 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: status_report
+2026-03-27 16:50:17,791 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: defer
+2026-03-27 16:50:17,791 INFO    SenderThread:1141325 [sender.py:send_request_defer():609] handle sender defer: 13
+2026-03-27 16:50:17,791 INFO    SenderThread:1141325 [sender.py:transition_state():613] send defer: 14
+2026-03-27 16:50:17,792 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: defer
+2026-03-27 16:50:17,793 DEBUG   SenderThread:1141325 [sender.py:send():378] send: final
+2026-03-27 16:50:17,793 INFO    HandlerThread:1141325 [handler.py:handle_request_defer():184] handle defer: 14
+2026-03-27 16:50:17,793 DEBUG   SenderThread:1141325 [sender.py:send():378] send: footer
+2026-03-27 16:50:17,793 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: defer
+2026-03-27 16:50:17,793 INFO    SenderThread:1141325 [sender.py:send_request_defer():609] handle sender defer: 14
+2026-03-27 16:50:17,795 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: poll_exit
+2026-03-27 16:50:17,795 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: poll_exit
+2026-03-27 16:50:17,796 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: internal_messages
+2026-03-27 16:50:17,798 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: server_info
+2026-03-27 16:50:17,798 DEBUG   SenderThread:1141325 [sender.py:send_request():405] send_request: server_info
+2026-03-27 16:50:17,841 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: get_summary
+2026-03-27 16:50:17,841 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: sampled_history
+2026-03-27 16:50:17,947 DEBUG   HandlerThread:1141325 [handler.py:handle_request():158] handle_request: shutdown
+2026-03-27 16:50:17,947 INFO    HandlerThread:1141325 [handler.py:finish():882] shutting down handler
+2026-03-27 16:50:18,798 INFO    WriterThread:1141325 [datastore.py:close():296] close: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_164932-smhx8m4q/run-smhx8m4q.wandb
+2026-03-27 16:50:18,945 INFO    SenderThread:1141325 [sender.py:finish():1545] shutting down sender
+2026-03-27 16:50:18,946 INFO    SenderThread:1141325 [file_pusher.py:finish():169] shutting down file pusher
+2026-03-27 16:50:18,946 INFO    SenderThread:1141325 [file_pusher.py:join():175] waiting for file pusher

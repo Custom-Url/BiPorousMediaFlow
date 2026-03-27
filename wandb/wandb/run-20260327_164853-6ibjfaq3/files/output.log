@@ -1,0 +1,50 @@
+Our model has 4472162 parameters.
+### MODEL ###
+ FNO(
+  (fno_blocks): FNOBlocks(
+    (convs): SpectralConv(
+      (weight): ModuleList(
+        (0): ComplexDenseTensor(shape=torch.Size([32, 32, 32, 17]), rank=None)
+        (1): ComplexDenseTensor(shape=torch.Size([32, 32, 32, 17]), rank=None)
+        (2): ComplexDenseTensor(shape=torch.Size([32, 32, 32, 17]), rank=None)
+        (3): ComplexDenseTensor(shape=torch.Size([32, 32, 32, 17]), rank=None)
+      )
+    )
+    (fno_skips): ModuleList(
+      (0): Conv2d(32, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (1): Conv2d(32, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (2): Conv2d(32, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (3): Conv2d(32, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+    )
+  )
+  (lifting): MLP(
+    (fcs): ModuleList(
+      (0): Conv2d(3, 256, kernel_size=(1, 1), stride=(1, 1))
+      (1): Conv2d(256, 32, kernel_size=(1, 1), stride=(1, 1))
+    )
+  )
+  (projection): MLP(
+    (fcs): ModuleList(
+      (0): Conv2d(32, 64, kernel_size=(1, 1), stride=(1, 1))
+      (1): Conv2d(64, 2, kernel_size=(1, 1), stride=(1, 1))
+    )
+  )
+)
+### OPTIMIZER ###
+ Adam (
+Parameter Group 0
+    amsgrad: False
+    betas: (0.9, 0.999)
+    capturable: False
+    eps: 1e-08
+    foreach: None
+    initial_lr: 0.00773891062948192
+    lr: 0.00773891062948192
+    maximize: False
+    weight_decay: 1e-05
+)
+### SCHEDULER ###
+ <torch.optim.lr_scheduler.StepLR object at 0x7f7fc721d550>
+### LOSSES ###
+ * Train: <neuralop.losses.data_losses.H1Loss object at 0x7f7fc6f276a0>
+ * Test: {'h1': <neuralop.losses.data_losses.H1Loss object at 0x7f7fc6f276a0>, 'l2': <neuralop.losses.data_losses.LpLoss object at 0x7f7fc6f278e0>}

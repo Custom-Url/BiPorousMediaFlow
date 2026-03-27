@@ -1,0 +1,34 @@
+2026-03-27 16:26:19,422 INFO    Thread-4  :1100044 [wandb_setup.py:_flush():76] Current SDK version is 0.17.0
+2026-03-27 16:26:19,422 INFO    Thread-4  :1100044 [wandb_setup.py:_flush():76] Configure stats pid to 1100044
+2026-03-27 16:26:19,422 INFO    Thread-4  :1100044 [wandb_setup.py:_flush():76] Loading settings from /u/q/dg765/.config/wandb/settings
+2026-03-27 16:26:19,422 INFO    Thread-4  :1100044 [wandb_setup.py:_flush():76] Loading settings from /mnt/data/dg765/BiPorousMediaFlow/wandb/settings
+2026-03-27 16:26:19,423 INFO    Thread-4  :1100044 [wandb_setup.py:_flush():76] Loading settings from environment variables: {'root_dir': '/mnt/data/dg765/BiPorousMediaFlow/wandb', 'project': 'BPMF', 'entity': 'dylangray', 'sweep_id': 'syehfyq2', 'run_id': 'uywypg2g', 'sweep_param_path': '/mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/sweep-syehfyq2/config-uywypg2g.yaml'}
+2026-03-27 16:26:19,423 INFO    Thread-4  :1100044 [wandb_setup.py:_flush():76] Applying setup settings: {'_disable_service': False}
+2026-03-27 16:26:19,423 INFO    Thread-4  :1100044 [wandb_setup.py:_flush():76] Inferring run settings from compute environment: {'program_relpath': 'code/train.py', 'program_abspath': '/mnt/data/dg765/BiPorousMediaFlow/code/train.py', 'program': 'code/train.py'}
+2026-03-27 16:26:19,423 INFO    Thread-4  :1100044 [wandb_setup.py:_flush():76] Applying login settings: {}
+2026-03-27 16:26:19,423 INFO    Thread-4  :1100044 [wandb_init.py:_log_setup():520] Logging user logs to /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_162619-uywypg2g/logs/debug.log
+2026-03-27 16:26:19,423 INFO    Thread-4  :1100044 [wandb_init.py:_log_setup():521] Logging internal logs to /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_162619-uywypg2g/logs/debug-internal.log
+2026-03-27 16:26:19,423 INFO    Thread-4  :1100044 [wandb_init.py:init():560] calling init triggers
+2026-03-27 16:26:19,423 INFO    Thread-4  :1100044 [wandb_init.py:init():567] wandb.init called with sweep_config: {'learning_rate': 0.003513286285145978, 'n_epochs': 10, 'n_train': 100, 'weight_decay': 1e-05}
+config: {}
+2026-03-27 16:26:19,423 INFO    Thread-4  :1100044 [wandb_init.py:init():610] starting backend
+2026-03-27 16:26:19,423 INFO    Thread-4  :1100044 [wandb_init.py:init():614] setting up manager
+2026-03-27 16:26:19,433 INFO    Thread-4  :1100044 [backend.py:_multiprocessing_setup():105] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2026-03-27 16:26:19,433 INFO    Thread-4  :1100044 [wandb_init.py:init():622] backend started and connected
+2026-03-27 16:26:19,457 INFO    Thread-4  :1100044 [wandb_run.py:_config_callback():1376] config_cb None None {'learning_rate': 0.003513286285145978, 'n_epochs': 10, 'n_train': 100, 'weight_decay': 1e-05}
+2026-03-27 16:26:19,460 INFO    Thread-4  :1100044 [wandb_init.py:init():711] updated telemetry
+2026-03-27 16:26:19,519 INFO    Thread-4  :1100044 [wandb_init.py:init():744] communicating run to backend with 90.0 second timeout
+2026-03-27 16:26:20,165 INFO    Thread-4  :1100044 [wandb_run.py:_on_init():2396] communicating current version
+2026-03-27 16:26:20,314 INFO    Thread-4  :1100044 [wandb_run.py:_on_init():2405] got version response upgrade_message: "wandb version 0.25.1 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+
+2026-03-27 16:26:20,314 INFO    Thread-4  :1100044 [wandb_init.py:init():795] starting run threads in backend
+2026-03-27 16:26:22,281 INFO    Thread-4  :1100044 [wandb_run.py:_console_start():2374] atexit reg
+2026-03-27 16:26:22,281 INFO    Thread-4  :1100044 [wandb_run.py:_redirect():2229] redirect: wrap_raw
+2026-03-27 16:26:22,281 INFO    Thread-4  :1100044 [wandb_run.py:_redirect():2294] Wrapping output streams.
+2026-03-27 16:26:22,281 INFO    Thread-4  :1100044 [wandb_run.py:_redirect():2319] Redirects installed.
+2026-03-27 16:26:22,284 INFO    Thread-4  :1100044 [wandb_init.py:init():838] run started, returning control to user process
+2026-03-27 16:26:22,285 INFO    Thread-4  :1100044 [wandb_run.py:_finish():2103] finishing run dylangray/BPMF/uywypg2g
+2026-03-27 16:26:22,285 INFO    Thread-4  :1100044 [wandb_run.py:_atexit_cleanup():2343] got exitcode: 1
+2026-03-27 16:26:22,286 INFO    Thread-4  :1100044 [wandb_run.py:_restore():2326] restore
+2026-03-27 16:26:22,286 INFO    Thread-4  :1100044 [wandb_run.py:_restore():2332] restore done
+2026-03-27 16:27:01,449 INFO    MainThread:1100044 [wandb_run.py:_finish():2103] finishing run dylangray/BPMF/uywypg2g

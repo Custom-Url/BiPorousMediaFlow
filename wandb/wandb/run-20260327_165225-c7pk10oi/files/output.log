@@ -1,0 +1,62 @@
+Our model has 4472162 parameters.
+### MODEL ###
+ FNO(
+  (fno_blocks): FNOBlocks(
+    (convs): SpectralConv(
+      (weight): ModuleList(
+        (0): ComplexDenseTensor(shape=torch.Size([32, 32, 32, 17]), rank=None)
+        (1): ComplexDenseTensor(shape=torch.Size([32, 32, 32, 17]), rank=None)
+        (2): ComplexDenseTensor(shape=torch.Size([32, 32, 32, 17]), rank=None)
+        (3): ComplexDenseTensor(shape=torch.Size([32, 32, 32, 17]), rank=None)
+      )
+    )
+    (fno_skips): ModuleList(
+      (0): Conv2d(32, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (1): Conv2d(32, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (2): Conv2d(32, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (3): Conv2d(32, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+    )
+  )
+  (lifting): MLP(
+    (fcs): ModuleList(
+      (0): Conv2d(3, 256, kernel_size=(1, 1), stride=(1, 1))
+      (1): Conv2d(256, 32, kernel_size=(1, 1), stride=(1, 1))
+    )
+  )
+  (projection): MLP(
+    (fcs): ModuleList(
+      (0): Conv2d(32, 64, kernel_size=(1, 1), stride=(1, 1))
+      (1): Conv2d(64, 2, kernel_size=(1, 1), stride=(1, 1))
+    )
+  )
+)
+### OPTIMIZER ###
+ Adam (
+Parameter Group 0
+    amsgrad: False
+    betas: (0.9, 0.999)
+    capturable: False
+    eps: 1e-08
+    foreach: None
+    initial_lr: 0.006186640069302049
+    lr: 0.006186640069302049
+    maximize: False
+    weight_decay: 1e-05
+)
+### SCHEDULER ###
+ <torch.optim.lr_scheduler.StepLR object at 0x7f29c8376370>
+### LOSSES ###
+ * Train: <neuralop.losses.data_losses.H1Loss object at 0x7f29c8376b80>
+ * Test: {'h1': <neuralop.losses.data_losses.H1Loss object at 0x7f29c8376b80>, 'l2': <neuralop.losses.data_losses.LpLoss object at 0x7f29c83765b0>}
+using standard method to load data to device.
+using standard method to compute loss.
+self.override_load_to_device=False
+self.overrides_loss=False
+Training on 100 samples
+Testing on [240] samples         on resolutions [256].
+Raw outputs of size out.shape=torch.Size([16, 2, 64, 64])
+[0] time=2.58, avg_loss=18.9811, train_err=27.1158, 256_h1=1.7600, 256_l2=1.4514
+Saved training state to <checkpoint_save_dir>/scheduler.pt
+[3] time=0.10, avg_loss=14.0637, train_err=20.0909, 256_h1=1.6230, 256_l2=1.3141
+[6] time=0.16, avg_loss=11.4591, train_err=16.3702, 256_h1=1.5930, 256_l2=1.2174
+[9] time=0.17, avg_loss=9.7179, train_err=13.8827, 256_h1=1.5548, 256_l2=1.2016

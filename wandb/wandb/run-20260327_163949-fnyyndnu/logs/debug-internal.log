@@ -1,0 +1,19 @@
+2026-03-27 16:39:49,407 INFO    StreamThr :1124212 [internal.py:wandb_internal():85] W&B internal server running at pid: 1124212, started at: 2026-03-27 16:39:49.406419
+2026-03-27 16:39:49,410 DEBUG   HandlerThread:1124212 [handler.py:handle_request():158] handle_request: status
+2026-03-27 16:39:49,431 INFO    WriterThread:1124212 [datastore.py:open_for_write():87] open: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_163949-fnyyndnu/run-fnyyndnu.wandb
+2026-03-27 16:39:49,432 DEBUG   SenderThread:1124212 [sender.py:send():378] send: header
+2026-03-27 16:39:49,501 DEBUG   SenderThread:1124212 [sender.py:send():378] send: run
+2026-03-27 16:39:50,239 INFO    SenderThread:1124212 [dir_watcher.py:__init__():211] watching files in: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_163949-fnyyndnu/files
+2026-03-27 16:39:50,239 INFO    SenderThread:1124212 [sender.py:_start_run_threads():1123] run started: fnyyndnu with start time 1774629589.404301
+2026-03-27 16:39:50,319 DEBUG   HandlerThread:1124212 [handler.py:handle_request():158] handle_request: shutdown
+2026-03-27 16:39:50,320 INFO    HandlerThread:1124212 [handler.py:finish():882] shutting down handler
+2026-03-27 16:39:50,501 INFO    WriterThread:1124212 [datastore.py:close():296] close: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_163949-fnyyndnu/run-fnyyndnu.wandb
+2026-03-27 16:39:51,239 INFO    SenderThread:1124212 [sender.py:finish():1545] shutting down sender
+2026-03-27 16:39:51,239 INFO    SenderThread:1124212 [dir_watcher.py:finish():358] shutting down directory watcher
+2026-03-27 16:39:52,240 INFO    SenderThread:1124212 [dir_watcher.py:finish():388] scan: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_163949-fnyyndnu/files
+2026-03-27 16:39:52,240 INFO    SenderThread:1124212 [dir_watcher.py:finish():402] scan save: /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_163949-fnyyndnu/files/config.yaml config.yaml
+2026-03-27 16:39:52,241 INFO    SenderThread:1124212 [file_pusher.py:finish():169] shutting down file pusher
+2026-03-27 16:39:52,241 INFO    SenderThread:1124212 [file_pusher.py:join():175] waiting for file pusher
+2026-03-27 16:39:52,921 INFO    wandb-upload_0:1124212 [upload_job.py:push():130] Uploaded file /mnt/data/dg765/BiPorousMediaFlow/wandb/wandb/run-20260327_163949-fnyyndnu/files/config.yaml
+2026-03-27 16:39:53,243 INFO    SenderThread:1124212 [file_stream.py:finish():601] file stream finish called
+2026-03-27 16:39:54,242 INFO    SenderThread:1124212 [file_stream.py:finish():605] file stream finish is done
