@@ -62,9 +62,9 @@ default: &DEFAULT
   # Dataset related
   data:
     batch_size: 16
-    n_train: 200
+    n_train: 500
     train_resolution: 256
-    n_tests: 240 #, 100, 100] #, 1000]
+    n_tests: [100] 
     test_resolutions: [256] #, 256, 512] #, 1024] 
     test_batch_sizes: [16] #, 8, 4] #, 1]
     positional_encoding: True
@@ -94,7 +94,7 @@ default: &DEFAULT
     
     params:
       n_epochs:
-        values: [10] 
+        values: [100] 
       learning_rate:
         distribution: uniform
         min: 1e-5
@@ -102,7 +102,7 @@ default: &DEFAULT
       weight_decay:
         values: [1e-5]
       n_train:
-        values: [100]
+        values: [500]
     early_terminate:
       type: hyperband
       s: 2
