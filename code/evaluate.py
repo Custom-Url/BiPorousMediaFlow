@@ -11,7 +11,6 @@ from matplotlib.ticker import LogLocator, ScalarFormatter
 
 
 from neuralop.training.trainer import Trainer
-from neuralop.training.callbacks import CheckpointCallback, BasicLoggerCallback
 from neuralop.utils import count_model_params
 from neuralop.losses.data_losses import LpLoss, H1Loss
 from utils.brinkman_amitex import load_stokesbrinkman

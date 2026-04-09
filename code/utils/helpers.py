@@ -1,6 +1,6 @@
 import numpy as np
 from utils.classes import microstructure, load_fluid_condition, param_algo, grid
-from neuralop.losses.data_losses import central_diff_2d
+from neuralop.losses.differentiation import central_diff_2d
 
 import torch
 

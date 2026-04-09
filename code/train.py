@@ -9,7 +9,6 @@ from configmypy import ConfigPipeline, YamlConfig, ArgparseConfig
 
 
 from neuralop.training.trainer import Trainer
-from neuralop.training.callbacks import CheckpointCallback, BasicLoggerCallback
 from neuralop.utils import count_model_params
 from neuralop.losses.data_losses import LpLoss, H1Loss
 from neuralop.training import setup
@@ -128,7 +127,6 @@ def train():
     )
     wandb.run.name = run_name
     
-    print(config.data.n_tests)
 
     # load the data
     root_dir = r"/mnt/data2/yc2634/ML/StokesBrinkman/R64"
@@ -160,15 +158,42 @@ def train():
 #        )
     # create an FNO model
 #    elif cfg.model_type == "fno":
-    model = FNO(
-        n_modes=(32, 32),
-        in_channels=3,
-        out_channels=2,
-        hidden_channels=32,
-        projection_channels=64,
-        )
+#    model = FNO(
+#        n_modes=(32, 32),
+#        in_channels=3,
+#        out_channels=2,
+#        hidden_channels=32,
+#        projection_channels=64,
+#        )
 #    else:
 #        raise ValueError(f"Model type {cfg.model_type} not recognised.")
+
+    # Build model explicitly from config
+    model_cfg = config.fno2d
+    n_modes = [model_cfg.n_modes_height, model_cfg.n_modes_width]
+
+    model = FNO(
+        n_modes = n_modes,
+        in_channels=model_cfg.in_channels,
+        out_channels=model_cfg.out_channels,
+        n_layers=model_cfg.n_layers,
+        hidden_channels=model_cfg.hidden_channels,
+        channel_mlp_dropout=model_cfg.channel_mlp_dropout,
+        fno_skip=model_cfg.skip,
+        norm=model_cfg.norm,
+        stabilizer=model_cfg.stabilizer,
+        separable=model_cfg.separable,
+        factorization=model_cfg.factorization,
+        rank=model_cfg.rank,
+        fixed_rank_modes=model_cfg.fixed_rank_modes,
+        implementation=model_cfg.implementation,
+        use_channel_mlp=model_cfg.use_mlp,
+        channel_mlp_expansion=model_cfg.mlp_expansion,
+        domain_padding=model_cfg.domain_padding,
+        fno_block_precision=model_cfg.fno_block_precision,
+        complex_data=False,  # or True if your data is complex
+    )
+
     model = model.to(device)
 
     n_params = count_model_params(model)
@@ -183,8 +208,8 @@ def train():
 
     # creating the losses
 #    if args.losses == "h1":
-    l2loss = LpLoss(d=2, p=2, reduce_dims=[0, 1])
-    h1loss = H1Loss(d=2, reduce_dims=[0, 1], fix_x_bnd=True, fix_y_bnd=True)
+    l2loss = LpLoss(d=2, p=2)
+    h1loss = H1Loss(d=2)
     train_loss = h1loss
     eval_losses = {"h1": h1loss, "l2": l2loss}
 #    elif args.losses == "l2":
@@ -228,37 +253,41 @@ def train():
     sys.stdout.flush()
 
     # Create the trainer
-    save_dir = "<checkpoint_save_dir>"
+    save_dir = "save_dir"
     DATE = datetime.datetime.utcnow().strftime(
         "%Y-%m-%dT%H%M%S.%fZ"
     )  # more precise for sweeps
-#    # log into wandb
-#    wandb.login()
-#    wandb.init(
-#        project="<wandb_project>",
-#        name="<wandb_run_name>",
-#        config=args,
-#    )
+
+
+
     trainer = Trainer(
         model=model,
-        n_epochs=cfg.n_epochs,
-        device=device,
-        callbacks=[
-            CheckpointCallback(
-                save_dir=save_dir,
-                save_best=False,
-                save_interval=10,
-                save_optimizer=True,
-                save_scheduler=True,
-            ),
-            BasicLoggerCallback(),
-        ],
+        n_epochs=config.opt.n_epochs,
         data_processor=data_processor,
-        wandb_log=True,
-        log_test_interval=3,
-        use_distributed=False,
-        verbose=True,
+        device=device,
+        log_output=config.wandb.log_output,
+        use_distributed=config.distributed.use_distributed,
+        verbose=config.verbose,
+        wandb_log = config.wandb.log
     )
+
+    # Log parameter count
+    if is_logger:
+        n_params = count_model_params(model)
+
+        if config.verbose:
+            print(f"\nn_params: {n_params}")
+            sys.stdout.flush()
+
+        if config.wandb.log:
+            to_log = {"n_params": n_params}
+            if config.n_params_baseline is not None:
+                to_log["n_params_baseline"] = (config.n_params_baseline,)
+                to_log["compression_ratio"] = (config.n_params_baseline / n_params,)
+                to_log["space_savings"] = 1 - (n_params / config.n_params_baseline)
+            wandb.log(to_log)
+            wandb.watch(model)
+
 
     # Train the model
     train = True

@@ -7,11 +7,11 @@ import torch
 import numpy as np
 import glob
 
-from neuralop.datasets.tensor_dataset import TensorDataset
+from neuralop.data.datasets.tensor_dataset import TensorDataset
 
-from neuralop.datasets.transforms import PositionalEmbedding2D
-from neuralop.datasets.output_encoder import UnitGaussianNormalizer
-from neuralop.datasets.data_transforms import DefaultDataProcessor
+from neuralop.layers.embeddings import GridEmbedding2D
+from neuralop.data.transforms.normalizers import UnitGaussianNormalizer
+from neuralop.data.transforms.data_processors import DefaultDataProcessor
 
 np.random.seed(0)
 torch.manual_seed(0)
@@ -74,9 +74,9 @@ def load_stokesbrinkman(
     test_resolutions=[256],
     train_resolution=256,
     grid_boundaries=[[0, 1], [0, 1]],
-    positional_encoding=True,
+    positional_encoding=False,
     encode_input=False,
-    encode_output=True,
+    encode_output=False,
     encoding="channel-wise",
     loading_cond="[1,0]",
 ):
@@ -168,6 +168,11 @@ def load_stokesbrinkman(
     test_resolution = test_resolutions[0]
 
 
+    print('x_train', x_train.shape)
+    print('y_train', y_train.shape)
+    print('x_test', x_test.shape)
+    print('y_test', y_test.shape)
+
     # Input encoding
     if encode_input:
         # Assuming encoding is channel-wise for simplicity
@@ -210,13 +215,12 @@ def load_stokesbrinkman(
 
     # Positional encoding
     if positional_encoding:
-        pos_encoding = PositionalEmbedding2D(grid_boundaries=grid_boundaries)
+        pos_encoding = GridEmbedding2D(in_channels=1)
     else:
         pos_encoding = None
     data_processor = DefaultDataProcessor(
         in_normalizer=input_encoder,
-        out_normalizer=output_encoder,
-        positional_encoding=pos_encoding,
+        out_normalizer=output_encoder
     )
 
     return train_loader, test_loaders, data_processor
