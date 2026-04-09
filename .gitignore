@@ -34,3 +34,4 @@ share/python-wheels/
 *.egg
 MANIFEST
 <checkpoint_save_dir>/
+save_dir/
