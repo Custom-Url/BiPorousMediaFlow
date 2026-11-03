@@ -5,7 +5,7 @@ metric:
   name: default 
 parameters:
   epochs:
-    values: [1000]
+    values: [100]
   batch-size:
     values: [16]
   lr:
@@ -19,7 +19,7 @@ parameters:
   model-type:
     values: ["fno"]
   n-train:
-    values: [50]
+    values: [700]
   n-tests:
     values: [10]
   losses:
