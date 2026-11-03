@@ -465,7 +465,7 @@ def calc_macro_permeability(model0, model1, res, save_path=None):
         True and predicted permeability tensor components.
     """
     # load the data (two simulations per sample)
-    device = torch.device("cuda")
+    config = _read_config()
     RESs = [res]
     test_loaders = ({}, {})
     for velo_dir in range(2):
@@ -482,12 +482,13 @@ def calc_macro_permeability(model0, model1, res, save_path=None):
                     train_resolution=RES,
                     grid_boundaries=[[0, 1], [0, 1]],
                     positional_encoding=True,
-                    encode_input=False,
-                    encode_output=False,
+                    encode_input=config.data.encode_input,
+                    encode_output=config.data.encode_output,
                     encoding="channel-wise",
                     loading_cond="[0,1]",
                 )
             data_processor0 = data_processor0.to(device)
+            data_processor0.eval()  # un-normalize outputs, keep targets raw
         else:
             for RES in RESs:
                 _, test_loaders[velo_dir][RES], data_processor1 = load_stokesbrinkman(
@@ -500,12 +501,13 @@ def calc_macro_permeability(model0, model1, res, save_path=None):
                     train_resolution=RES,
                     grid_boundaries=[[0, 1], [0, 1]],
                     positional_encoding=True,
-                    encode_input=False,
-                    encode_output=False,
+                    encode_input=config.data.encode_input,
+                    encode_output=config.data.encode_output,
                     encoding="channel-wise",
                     loading_cond="[1,0]",
                 )
                 data_processor1 = data_processor1.to(device)
+                data_processor1.eval()
 
     # Macro-permeability
     pressureProvided = False
@@ -527,6 +529,7 @@ def calc_macro_permeability(model0, model1, res, save_path=None):
 
     idx_RES = []
     idx_SAM = []
+    n_skipped = 0
 
     for RES in RESs:
         l2[0][RES] = []
@@ -539,6 +542,8 @@ def calc_macro_permeability(model0, model1, res, save_path=None):
             idx_SAM.append(i)
             i = i + 1
             # LOAD 1 and 2
+            # The models see encoded inputs, but the physics needs raw log10(beta)
+            raw_x1, raw_x2 = data1["x"].clone(), data2["x"].clone()
             data1 = _preprocess_sample(data_processor0, data1)
             data2 = _preprocess_sample(data_processor1, data2)
 
@@ -557,6 +562,7 @@ def calc_macro_permeability(model0, model1, res, save_path=None):
                 idir=0,
                 encode_output=None,
             )
+            x1, x2 = raw_x1.cpu(), raw_x2.cpu()
             data1["y"], data2["y"] = y1, y2
             data1["x"], data2["x"] = x1, x2
 
@@ -636,9 +642,20 @@ def calc_macro_permeability(model0, model1, res, save_path=None):
             # macro permeability
             try:
                 K_true = torch.linalg.solve(H_true, torch.eye(2))
+                K_pred = torch.linalg.solve(H_pred, torch.eye(2))
             except RuntimeError as e:
                 print("Skipping due to singular matrix", str(e))
-            K_pred = torch.linalg.solve(H_pred, torch.eye(2))
+                n_skipped += 1
+                continue
+            # log-based norms and log-log plots need finite, non-zero entries
+            if not (
+                torch.isfinite(K_true).all()
+                and torch.isfinite(K_pred).all()
+                and K_true.abs().min() > 0
+                and K_pred.abs().min() > 0
+            ):
+                n_skipped += 1
+                continue
 
             # register
             K11_true.append(abs(K_true[0, 0].cpu()))
@@ -655,6 +672,11 @@ def calc_macro_permeability(model0, model1, res, save_path=None):
         torch.mean(torch.tensor(l2[0][res])),
         torch.mean(torch.tensor(l2[1][res])),
     )
+
+    if n_skipped:
+        print(f"Skipped {n_skipped} samples with singular or non-finite K")
+    if not K11_true:
+        raise RuntimeError("No valid permeability tensors were computed")
 
     ## compare K
     plot_Kcompar(

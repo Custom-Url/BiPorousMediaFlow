@@ -268,7 +268,9 @@ def calc_pressure_grad_2d(
     if not inputEncoded:  # out: BxCxWxH
         beta = data["x"][0]  # data['x']: CxW, data['y']: CxW
     else:
-        beta = torch.pow(data["x"][0], 10)
+        # decode log10(beta); zeros mark the non-porous phase (as in preparation())
+        x0 = data["x"][0]
+        beta = torch.where(x0 > 0, torch.pow(10.0, x0), x0)
     phi = torch.zeros_like(beta)
     phi[data["x"][0] == 0] = mu
     phi[data["x"][0] != 0] = mue
