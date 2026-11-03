@@ -52,6 +52,20 @@ def str2bool(value):
 
 
 # %%
+def _preprocess_sample(data_processor, sample):
+    """Preprocess one unbatched sample, keeping x as (C, H, W).
+
+    The input normalizer can add a leading batch dim, which would break the
+    model call (`x.unsqueeze(0)`) and the plotting code.
+    """
+    data = data_processor.preprocess(sample, batched=False)
+    if data["x"].ndim == 4:
+        data["x"] = data["x"][0]
+    if data["y"].ndim == 4:
+        data["y"] = data["y"][0]
+    return data
+
+
 def unpack_data(model, data, data_processor, idir, encode_output=None):
     """
     Unpack data for model prediction and postprocess the output.
@@ -233,7 +247,7 @@ def load_outputs_loss_functions(
             with torch.no_grad():
                 model.eval()
                 for j, data in enumerate(test_loader):
-                    data = data_processor.preprocess(data, batched=False)
+                    data = _preprocess_sample(data_processor, data)
                     x = data["x"].unsqueeze(0).to(device)
                     out = model(x)
                     out, data = data_processor.postprocess(out, data)
@@ -460,7 +474,7 @@ def calc_macro_permeability(model0, model1, res, save_path=None):
                 _, test_loaders[velo_dir][RES], data_processor0 = load_stokesbrinkman(
                     root_dir=root_dir,
                     n_train=700,
-                    n_tests=[100],
+                    n_tests=100,
                     batch_size=1,
                     test_batch_sizes=[1],
                     test_resolutions=[RES],
@@ -478,7 +492,7 @@ def calc_macro_permeability(model0, model1, res, save_path=None):
                 _, test_loaders[velo_dir][RES], data_processor1 = load_stokesbrinkman(
                     root_dir=root_dir,
                     n_train=700,
-                    n_tests=[100],
+                    n_tests=100,
                     batch_size=1,
                     test_batch_sizes=[1],
                     test_resolutions=[RES],
@@ -524,8 +538,8 @@ def calc_macro_permeability(model0, model1, res, save_path=None):
             idx_SAM.append(i)
             i = i + 1
             # LOAD 1 and 2
-            data1 = data_processor0.preprocess(data1, batched=False)
-            data2 = data_processor1.preprocess(data2, batched=False)
+            data1 = _preprocess_sample(data_processor0, data1)
+            data2 = _preprocess_sample(data_processor1, data2)
 
             # unpack data
             x1, y1, out1 = unpack_data(
@@ -681,7 +695,7 @@ def calc_macro_permeability_train(save_path=None):
         train_loaders[velo_dir][RES], _, data_processor = load_stokesbrinkman(
             root_dir=root_dir,
             n_train=700,
-            n_tests=[100],
+            n_tests=100,
             batch_size=1,
             test_batch_sizes=[1],
             test_resolutions=[RES],
@@ -728,8 +742,8 @@ def calc_macro_permeability_train(save_path=None):
         idx_SAM.append(i)
         i = i + 1
         # LOAD 1 and 2
-        data1 = data_processor.preprocess(data1, batched=False)
-        data2 = data_processor.preprocess(data2, batched=False)
+        data1 = _preprocess_sample(data_processor, data1)
+        data2 = _preprocess_sample(data_processor, data2)
 
         # unpack data
         x1, y1, out1 = unpack_data(data1, 0, encode_output=None)
@@ -821,7 +835,7 @@ def test_on_unseen_data(loading_cond):
     train_loader, test_loaders, data_processor = load_stokesbrinkman(
         root_dir=root_dir,
         n_train=1,
-        n_tests=[50],
+        n_tests=50,
         batch_size=1,
         test_batch_sizes=[1],
         test_resolutions=[128],
@@ -843,7 +857,7 @@ def test_on_unseen_data(loading_cond):
     fig = plt.figure(figsize=(7, 7))
     for index in range(3):
         data = test_samples[index + 0]
-        data = data_processor.preprocess(data, batched=False)
+        data = _preprocess_sample(data_processor, data)
 
         # Model prediction
         out = model(data["x"].unsqueeze(0))
@@ -944,7 +958,7 @@ def plot_images(test_samples, data_processor, model):
     fig = plt.figure(figsize=(7, 7))
     for index in range(3):
         data = test_samples[index + 0]
-        data = data_processor.preprocess(data, batched=False)
+        data = _preprocess_sample(data_processor, data)
 
         # Model prediction
         out = model(data["x"].unsqueeze(0))
@@ -1021,7 +1035,7 @@ def compute_loss_per_sample(test_samples, loss, model, data_processor, device):
 
     for idx, sample in enumerate(test_samples):
         # Preprocess the sample
-        data = data_processor.preprocess(sample, batched=False)
+        data = _preprocess_sample(data_processor, sample)
         input_tensor = data["x"].unsqueeze(0).to(device)
         target_tensor = data["y"].unsqueeze(0).to(device)
 
@@ -1076,7 +1090,7 @@ def compute_l2_loss_funcs(
         with torch.no_grad():
             model.eval()
             for j, data in enumerate(test_loader):
-                data = data_processor.preprocess(data, batched=False)
+                data = _preprocess_sample(data_processor, data)
                 x = data["x"].unsqueeze(0).to(device)
                 out = model(x)
                 out, test_data = data_processor.postprocess(out, data)
@@ -1304,8 +1318,8 @@ def plot_beta():
     root_dir = f"{DATA_ROOT}/R64"
     train_loader, test_loaders, data_processor = load_stokesbrinkman(
         root_dir=root_dir,
-        n_train=700,
-        n_tests=[100],
+        n_train=500,
+        n_tests=100,
         batch_size=16,
         test_batch_sizes=[1],
         test_resolutions=[64],
@@ -1316,8 +1330,8 @@ def plot_beta():
         encode_output=False,
         encoding="channel-wise",
     )
-    beta_test = torch.zeros((100, 4096))
-    beta_train = torch.zeros((700, 4096))
+    beta_test = torch.zeros((len(test_loaders[64].dataset), 4096))
+    beta_train = torch.zeros((len(train_loader.dataset), 4096))
     for i, data in enumerate(test_loaders[64]):
         beta_test[i] = data["x"][0].flatten()
     plt.rcParams["font.size"] = "12"
