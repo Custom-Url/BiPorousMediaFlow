@@ -34,7 +34,7 @@ DATA_ROOT = os.environ.get(
     "BPMF_DATA_ROOT", "/mnt/data2/yc2634/ML/StokesBrinkman"
 )
 CHECKPOINT_DIR = os.environ.get(
-    "BPMF_CHECKPOINT_DIR", os.path.join(CODE_DIR, "save_dir")
+    "BPMF_CHECKPOINT_DIR", os.path.join(PROJECT_ROOT, "save_dir")
 )
 FIGURES_DIR = os.path.join(CODE_DIR, "figures")
 os.makedirs(FIGURES_DIR, exist_ok=True)
