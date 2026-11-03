@@ -310,7 +310,7 @@ def train():
             "optimizer": optimizer.state_dict(),
         }
         torch.save(
-            checkpoint, f"<checkpoint_save_dir>/{DATE}_last.pt"
+            checkpoint, f"checkpoint_save_dir/{DATE}_last.pt"
         )
 
 # Run the sweep

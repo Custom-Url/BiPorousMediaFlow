@@ -47,7 +47,7 @@ default: &DEFAULT
 
   # Optimizer
   opt:
-    n_epochs: 100
+    n_epochs: 10
     learning_rate: 0.0001
     training_loss: 'l2'
     weight_decay: 1e-5
@@ -94,7 +94,7 @@ default: &DEFAULT
     
     params:
       n_epochs:
-        values: [100] 
+        values: [10] 
       learning_rate:
         distribution: uniform
         min: 1e-5
