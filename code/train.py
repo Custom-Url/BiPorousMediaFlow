@@ -328,7 +328,7 @@ def train():
         torch.save(
             checkpoint, f"{save_dir}/{DATE}_last.pt"
         )
-        print(f"Saved checkpoint {save_dir}/{DATE}_last.pt (loading_cond={LOADING_COND})")
+        print(f"Saved checkpoint {save_dir}/{DATE}_last.pt (loading_cond={cfg.loading_cond})")
 
 # Run the sweep
 wandb.agent(sweep_id, function=train)
