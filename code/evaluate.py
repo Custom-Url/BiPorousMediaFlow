@@ -1181,7 +1181,8 @@ def evaluate_checkpoint(checkpoint_path=None):
         fno_block_precision=model_cfg.fno_block_precision,
         complex_data=False,
     ).to(device)
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
+    # Optimizer state in train.py checkpoints contains ruamel.yaml types, so only load files you trained
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     if "state_dict" not in checkpoint:
         raise ValueError(f"Checkpoint does not contain a state_dict: {checkpoint_path}")
     model.load_state_dict(checkpoint["state_dict"])
