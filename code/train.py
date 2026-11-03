@@ -150,11 +150,12 @@ def train():
     )
     data_processor = data_processor.to(device)
 
+    # in_channels is the data channel count: neuralop's FNO adds the 2 grid channels itself
     # create a tensorised FNO model
     if cfg.model_type == "tfno":
         model = TFNO(
             n_modes=(64, 64),
-            in_channels=3,
+            in_channels=1,
             out_channels=2,
             hidden_channels=32,
             projection_channels=64,
@@ -165,7 +166,7 @@ def train():
     elif cfg.model_type == "fno":
         model = FNO(
             n_modes=(32, 32),
-            in_channels=3,
+            in_channels=1,
             out_channels=2,
             hidden_channels=32,
             projection_channels=64,

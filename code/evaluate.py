@@ -37,6 +37,7 @@ CHECKPOINT_DIR = os.environ.get(
     "BPMF_CHECKPOINT_DIR", os.path.join(PROJECT_ROOT, "save_dir")
 )
 FIGURES_DIR = os.path.join(CODE_DIR, "figures")
+MODEL_TYPE = "config"  # set by --model
 os.makedirs(FIGURES_DIR, exist_ok=True)
 
 
@@ -1178,11 +1179,26 @@ def _resolve_checkpoint(checkpoint_path=None):
     return path
 
 
-def load_trained_model(config, checkpoint_path=None):
-    """Build the FNO used by train.py and load a local checkpoint into it."""
-    checkpoint_path = _resolve_checkpoint(checkpoint_path)
+def build_model(config, model_type="config"):
+    """Build the architecture used for training.
+
+    "config" -> FNO from config/BPMF_config.yaml; "fno"/"tfno" -> the fixed
+    architectures in train.py. in_channels=1 because neuralop adds the grid channels.
+    """
+    if model_type == "tfno":
+        return TFNO(
+            n_modes=(64, 64), in_channels=1, out_channels=2, hidden_channels=32,
+            projection_channels=64, factorization="tucker", rank=0.42,
+        ).to(device)
+    if model_type == "fno":
+        return FNO(
+            n_modes=(32, 32), in_channels=1, out_channels=2, hidden_channels=32,
+            projection_channels=64,
+        ).to(device)
+    if model_type != "config":
+        raise ValueError(f"Unknown model type {model_type}")
     model_cfg = config.fno2d
-    model = FNO(
+    return FNO(
         n_modes=[model_cfg.n_modes_height, model_cfg.n_modes_width],
         in_channels=model_cfg.in_channels,
         out_channels=model_cfg.out_channels,
@@ -1203,6 +1219,12 @@ def load_trained_model(config, checkpoint_path=None):
         fno_block_precision=model_cfg.fno_block_precision,
         complex_data=False,
     ).to(device)
+
+
+def load_trained_model(config, checkpoint_path=None, model_type=None):
+    """Build the training architecture and load a local checkpoint into it."""
+    checkpoint_path = _resolve_checkpoint(checkpoint_path)
+    model = build_model(config, model_type or MODEL_TYPE)
     # Optimizer state in train.py checkpoints contains ruamel.yaml types, so only load files you trained
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     if "state_dict" not in checkpoint:
@@ -1365,11 +1387,16 @@ if __name__ == "__main__":
         "best: lowest-loss test sample; unseen: R128 data; "
         "permeability: macro-permeability (needs --ckpt0 and --ckpt1); beta: input histograms",
     )
+    parser.add_argument(
+        "--model", choices=["config", "fno", "tfno"], default="config",
+        help="architecture the checkpoint was trained with (train.py model_type)",
+    )
     parser.add_argument("--ckpt", help="checkpoint file (default: newest in save_dir)")
     parser.add_argument("--ckpt0", help="checkpoint for loading condition U=[0,1]")
     parser.add_argument("--ckpt1", help="checkpoint for loading condition U=[1,0]")
     parser.add_argument("--loading-cond", default="[1,0]", help="for 'unseen'")
     args = parser.parse_args()
+    MODEL_TYPE = args.model
 
     if args.command == "l2":
         evaluate_checkpoint(args.ckpt)
