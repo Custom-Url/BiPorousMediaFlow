@@ -1,10 +1,11 @@
+import os
 import torch
 import sys
 import datetime
 from pathlib import Path
 
 import yaml
-from neuralop.models.fno import FNO
+from neuralop.models.fno import TFNO, FNO
 
 import wandb
 
@@ -19,15 +20,6 @@ from utils.brinkman_amitex import load_stokesbrinkman
 
 device = "cuda"
 torch.manual_seed(0)
-
-sweep_config_path = Path(__file__).resolve().parents[1] / "config" / "sweep_config.yaml"
-with sweep_config_path.open(encoding="utf-8") as sweep_config_file:
-    loading_condition_config = yaml.safe_load(sweep_config_file)
-
-loading_conditions = loading_condition_config["parameters"]["loading-cond"]["values"]
-if not loading_conditions:
-    raise ValueError(f"No loading conditions defined in {sweep_config_path}")
-
 
 # Read the configuration
 config_name = "default"
@@ -110,8 +102,6 @@ for param_name, param_values in config.wandb.params.items():
     else:
         raise ValueError(f"Parameter '{param_name}' must define either 'values' or 'min'/'max'.")
 
-# The sweep config uses a hyphenated key; use an underscore for wandb.config access.
-sweep_config["parameters"]["loading_cond"] = {"values": loading_conditions}
 
 # Initialize a new sweep
 sweep_id = wandb.sweep(sweep_config, project="BPMF")
@@ -160,57 +150,59 @@ def train():
     )
     data_processor = data_processor.to(device)
 
-#    # create a tensorised FNO model
-#    if cfg.model_type == "tfno":
-#        model = TFNO(
-#            n_modes=(64, 64),
-#            in_channels=3,
-#            out_channels=2,
-#            hidden_channels=32,
-#            projection_channels=64,
-#            factorization="tucker",
-#            rank=0.42,
-#        )
+    # create a tensorised FNO model
+    if cfg.model_type == "tfno":
+        model = TFNO(
+            n_modes=(64, 64),
+            in_channels=3,
+            out_channels=2,
+            hidden_channels=32,
+            projection_channels=64,
+            factorization="tucker",
+            rank=0.42,
+        )
     # create an FNO model
-#    elif cfg.model_type == "fno":
+    elif cfg.model_type == "fno":
+        model = FNO(
+            n_modes=(32, 32),
+            in_channels=3,
+            out_channels=2,
+            hidden_channels=32,
+            projection_channels=64,
+        )
+    else:
+        raise ValueError(f"Model type {cfg.model_type} not recognised.")
+
+#    # Build model explicitly from config
+#    model_cfg = config.fno2d
+#    n_modes = [model_cfg.n_modes_height, model_cfg.n_modes_width]
+#
 #    model = FNO(
-#        n_modes=(32, 32),
-#        in_channels=3,
-#        out_channels=2,
-#        hidden_channels=32,
-#        projection_channels=64,
-#        )
-#    else:
-#        raise ValueError(f"Model type {cfg.model_type} not recognised.")
-
-    # Build model explicitly from config
-    model_cfg = config.fno2d
-    n_modes = [model_cfg.n_modes_height, model_cfg.n_modes_width]
-
-    model = FNO(
-        n_modes = n_modes,
-        in_channels=model_cfg.in_channels,
-        out_channels=model_cfg.out_channels,
-        n_layers=model_cfg.n_layers,
-        hidden_channels=model_cfg.hidden_channels,
-        channel_mlp_dropout=model_cfg.channel_mlp_dropout,
-        fno_skip=model_cfg.skip,
-        norm=model_cfg.norm,
-        stabilizer=model_cfg.stabilizer,
-        separable=model_cfg.separable,
-        factorization=model_cfg.factorization,
-        rank=model_cfg.rank,
-        fixed_rank_modes=model_cfg.fixed_rank_modes,
-        implementation=model_cfg.implementation,
-        use_channel_mlp=model_cfg.use_mlp,
-        channel_mlp_expansion=model_cfg.mlp_expansion,
-        domain_padding=model_cfg.domain_padding,
-        fno_block_precision=model_cfg.fno_block_precision,
-        complex_data=False,  # or True if your data is complex
-    )
+#        n_modes = n_modes,
+#        in_channels=model_cfg.in_channels,
+#        out_channels=model_cfg.out_channels,
+#        n_layers=model_cfg.n_layers,
+#        hidden_channels=model_cfg.hidden_channels,
+#        channel_mlp_dropout=model_cfg.channel_mlp_dropout,
+#        fno_skip=model_cfg.skip,
+#        norm=model_cfg.norm,
+#        stabilizer=model_cfg.stabilizer,
+#        separable=model_cfg.separable,
+#        factorization=model_cfg.factorization,
+#        rank=model_cfg.rank,
+#        fixed_rank_modes=model_cfg.fixed_rank_modes,
+#        implementation=model_cfg.implementation,
+#        use_channel_mlp=model_cfg.use_mlp,
+#        channel_mlp_expansion=model_cfg.mlp_expansion,
+#        domain_padding=model_cfg.domain_padding,
+#        fno_block_precision=model_cfg.fno_block_precision,
+#        complex_data=False,  # or True if your data is complex
+#    )
 
     model = model.to(device)
 
+    print("CONFIG:", config)
+    
     n_params = count_model_params(model)
     print(f"\nOur model has {n_params} parameters.")
     sys.stdout.flush()
