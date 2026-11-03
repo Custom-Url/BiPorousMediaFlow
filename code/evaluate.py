@@ -1187,7 +1187,7 @@ def build_model(config, model_type="config"):
     """
     if model_type == "tfno":
         return TFNO(
-            n_modes=(64, 64), in_channels=1, out_channels=2, hidden_channels=32,
+            n_modes=(32, 32), in_channels=1, out_channels=2, hidden_channels=32,
             projection_channels=64, factorization="tucker", rank=0.42,
         ).to(device)
     if model_type == "fno":
@@ -1237,7 +1237,7 @@ def load_trained_model(config, checkpoint_path=None, model_type=None):
 
 def load_test_data(config):
     """Load the test set with the same settings train.py used."""
-    root_dir = os.path.join(DATA_ROOT, "R64")
+    root_dir = os.path.join(DATA_ROOT, "R64_unseen")
     if not os.path.isdir(root_dir):
         raise FileNotFoundError(
             f"Dataset directory not found: {root_dir}. Set BPMF_DATA_ROOT to the directory containing R64."
