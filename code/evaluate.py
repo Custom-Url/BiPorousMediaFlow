@@ -1137,15 +1137,16 @@ def compute_frobenius_norm(K_pred, K_gt):
     return fro_norm
 
 
-def evaluate_checkpoint(checkpoint_path=None):
-    """Evaluate one local checkpoint on the configured test set."""
+def _read_config():
     from configmypy import ConfigPipeline, YamlConfig
 
     config_path = os.path.join(PROJECT_ROOT, "config", "BPMF_config.yaml")
-    config = ConfigPipeline(
+    return ConfigPipeline(
         [YamlConfig(config_path, config_name="default", config_folder=os.path.dirname(config_path))]
     ).read_conf()
 
+
+def _resolve_checkpoint(checkpoint_path=None):
     if checkpoint_path is None:
         checkpoints = glob.glob(os.path.join(CHECKPOINT_DIR, "*_last.pt"))
         if not checkpoints:
@@ -1153,12 +1154,19 @@ def evaluate_checkpoint(checkpoint_path=None):
                 f"No *_last.pt checkpoints found in {CHECKPOINT_DIR}. "
                 "Set BPMF_CHECKPOINT_DIR or pass a checkpoint path."
             )
-        checkpoint_path = max(checkpoints, key=os.path.getmtime)
-    elif not os.path.isabs(checkpoint_path):
-        checkpoint_path = os.path.abspath(checkpoint_path)
-    if not os.path.isfile(checkpoint_path):
-        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+        return max(checkpoints, key=os.path.getmtime)
+    path = os.path.abspath(checkpoint_path)
+    if not os.path.isfile(path):
+        alt = os.path.join(CHECKPOINT_DIR, os.path.basename(checkpoint_path))
+        if os.path.isfile(alt):
+            return alt
+        raise FileNotFoundError(f"Checkpoint not found: {path}")
+    return path
 
+
+def load_trained_model(config, checkpoint_path=None):
+    """Build the FNO used by train.py and load a local checkpoint into it."""
+    checkpoint_path = _resolve_checkpoint(checkpoint_path)
     model_cfg = config.fno2d
     model = FNO(
         n_modes=[model_cfg.n_modes_height, model_cfg.n_modes_width],
@@ -1187,7 +1195,12 @@ def evaluate_checkpoint(checkpoint_path=None):
         raise ValueError(f"Checkpoint does not contain a state_dict: {checkpoint_path}")
     model.load_state_dict(checkpoint["state_dict"])
     model.eval()
+    print(f"Checkpoint: {checkpoint_path}")
+    return model, checkpoint_path
 
+
+def load_test_data(config):
+    """Load the test set with the same settings train.py used."""
     root_dir = os.path.join(DATA_ROOT, "R64")
     if not os.path.isdir(root_dir):
         raise FileNotFoundError(
@@ -1208,8 +1221,15 @@ def evaluate_checkpoint(checkpoint_path=None):
     )
     data_processor = data_processor.to(device)
     data_processor.eval()  # un-normalize outputs, keep targets raw
+    return test_loaders, data_processor
 
-    print(f"Checkpoint: {checkpoint_path}")
+
+def evaluate_checkpoint(checkpoint_path=None):
+    """Mean relative L2 error of one local checkpoint on the test set."""
+    config = _read_config()
+    model, _ = load_trained_model(config, checkpoint_path)
+    test_loaders, data_processor = load_test_data(config)
+
     for resolution, test_loader in test_loaders.items():
         relative_errors = []
         with torch.no_grad():
@@ -1218,7 +1238,6 @@ def evaluate_checkpoint(checkpoint_path=None):
                 prediction = model(batch["x"].to(device))
                 prediction, batch = data_processor.postprocess(prediction, batch)
                 target = batch["y"].to(device)
-                # per-sample relative L2 error
                 diff = (prediction - target).flatten(start_dim=1)
                 ref = target.flatten(start_dim=1)
                 relative_errors.extend(
@@ -1233,7 +1252,122 @@ def evaluate_checkpoint(checkpoint_path=None):
         )
 
 
-if __name__ == "__main__":
-    import sys
+def run_images(checkpoint_path=None):
+    """Save input / ground truth / prediction plots for the first test samples."""
+    global CHECKPOINT
+    config = _read_config()
+    model, path = load_trained_model(config, checkpoint_path)
+    CHECKPOINT = os.path.basename(path).replace("_last.pt", "")
+    test_loaders, data_processor = load_test_data(config)
+    test_samples = next(iter(test_loaders.values())).dataset
+    with torch.no_grad():
+        plot_images(test_samples, data_processor, model)
+    print(f"Saved {FIGURES_DIR}/{CHECKPOINT}_last.png")
 
-    evaluate_checkpoint(sys.argv[1] if len(sys.argv) > 1 else None)
+
+def run_best_sample(checkpoint_path=None):
+    """Find the test sample with the lowest relative L2 loss."""
+    config = _read_config()
+    model, _ = load_trained_model(config, checkpoint_path)
+    test_loaders, data_processor = load_test_data(config)
+    test_samples = next(iter(test_loaders.values())).dataset
+    loss = lambda out, x, y: LpLoss(d=2, p=2)(out, y)
+    compute_loss_per_sample(test_samples, loss, model, data_processor, device)
+
+
+def run_unseen(checkpoint_path=None, loading_cond="[1,0]"):
+    """Evaluate on the R128 dataset (needs <DATA_ROOT>/R128)."""
+    global model
+    config = _read_config()
+    model, _ = load_trained_model(config, checkpoint_path)
+    test_on_unseen_data(loading_cond)
+
+
+def run_permeability(checkpoint0, checkpoint1):
+    """Macro-permeability needs two models: loading U=[0,1] and U=[1,0]."""
+    config = _read_config()
+    model0, _ = load_trained_model(config, checkpoint0)
+    model1, _ = load_trained_model(config, checkpoint1)
+    save_path = os.path.join(FIGURES_DIR, "K_comparison.png")
+    (
+        K11_true, K11_pred, K12_true, K12_pred,
+        K21_true, K21_pred, K22_true, K22_pred,
+    ) = calc_macro_permeability(model0=model0, model1=model1, res=64, save_path=save_path)
+    K_pred = torch.tensor([[K11_pred, K12_pred], [K21_pred, K22_pred]]).permute(2, 0, 1)
+    K_true = torch.tensor([[K11_true, K12_true], [K21_true, K22_true]]).permute(2, 0, 1)
+    print(f"Sup norm: {compute_sup_norm(K_pred, K_true):.4f}")
+    print(f"Fro norm: {compute_frobenius_norm(K_pred, K_true):.4f}")
+
+
+def plot_beta():
+    """Histograms of the log10(beta) input values in the test and train sets."""
+    root_dir = f"{DATA_ROOT}/R64"
+    train_loader, test_loaders, data_processor = load_stokesbrinkman(
+        root_dir=root_dir,
+        n_train=700,
+        n_tests=[100],
+        batch_size=16,
+        test_batch_sizes=[1],
+        test_resolutions=[64],
+        train_resolution=64,
+        grid_boundaries=[[0, 1], [0, 1]],
+        positional_encoding=True,
+        encode_input=False,
+        encode_output=False,
+        encoding="channel-wise",
+    )
+    beta_test = torch.zeros((100, 4096))
+    beta_train = torch.zeros((700, 4096))
+    for i, data in enumerate(test_loaders[64]):
+        beta_test[i] = data["x"][0].flatten()
+    plt.rcParams["font.size"] = "12"
+    plt.hist(beta_test.flatten(), bins=100, log=True, density=True)
+    plt.xscale("log")
+    plt.gca().xaxis.set_major_locator(LogLocator(base=10.0))
+    plt.xlabel(r"Distribution of $\log_{10}(\beta)$ values in test dataset.")
+    plt.savefig(f"{FIGURES_DIR}/beta_test.png", dpi=300)
+    plt.close()
+    print(beta_test.min(), beta_test.max())
+
+    for j, data in enumerate(train_loader.dataset):
+        beta_train[j] = data["x"][0].flatten()
+    plt.hist(beta_train.flatten(), bins=100, log=True, density=True)
+    plt.xscale("log")
+    plt.gca().xaxis.set_major_locator(LogLocator(base=10.0))
+    plt.xlabel(r"Distribution of $\log_{10}(\beta)$ values in training dataset.")
+    plt.savefig(f"{FIGURES_DIR}/beta_train.png", dpi=300)
+    plt.close()
+    print(beta_train.min(), beta_train.max())
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Evaluate a trained BPMF model.")
+    parser.add_argument(
+        "command",
+        nargs="?",
+        default="l2",
+        choices=["l2", "images", "best", "unseen", "permeability", "beta"],
+        help="l2: mean relative L2 error (default); images: save prediction plots; "
+        "best: lowest-loss test sample; unseen: R128 data; "
+        "permeability: macro-permeability (needs --ckpt0 and --ckpt1); beta: input histograms",
+    )
+    parser.add_argument("--ckpt", help="checkpoint file (default: newest in save_dir)")
+    parser.add_argument("--ckpt0", help="checkpoint for loading condition U=[0,1]")
+    parser.add_argument("--ckpt1", help="checkpoint for loading condition U=[1,0]")
+    parser.add_argument("--loading-cond", default="[1,0]", help="for 'unseen'")
+    args = parser.parse_args()
+
+    if args.command == "l2":
+        evaluate_checkpoint(args.ckpt)
+    elif args.command == "images":
+        run_images(args.ckpt)
+    elif args.command == "best":
+        run_best_sample(args.ckpt)
+    elif args.command == "unseen":
+        run_unseen(args.ckpt, args.loading_cond)
+    elif args.command == "permeability":
+        if not (args.ckpt0 and args.ckpt1):
+            parser.error("permeability requires --ckpt0 and --ckpt1")
+        run_permeability(args.ckpt0, args.ckpt1)
+    elif args.command == "beta":
+        plot_beta()
