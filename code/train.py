@@ -1,7 +1,9 @@
 import torch
 import sys
-import os
 import datetime
+from pathlib import Path
+
+import yaml
 from neuralop.models.fno import FNO
 
 import wandb
@@ -18,10 +20,13 @@ from utils.brinkman_amitex import load_stokesbrinkman
 device = "cuda"
 torch.manual_seed(0)
 
-# Loading condition: "[1,0]" (default) or "[0,1]"; set via BPMF_LOADING_COND
-LOADING_COND = os.environ.get("BPMF_LOADING_COND", "[1,0]")
-if LOADING_COND not in ("[1,0]", "[0,1]"):
-    raise ValueError(f"BPMF_LOADING_COND must be [1,0] or [0,1], got {LOADING_COND}")
+sweep_config_path = Path(__file__).resolve().parents[1] / "config" / "sweep_config.yaml"
+with sweep_config_path.open(encoding="utf-8") as sweep_config_file:
+    loading_condition_config = yaml.safe_load(sweep_config_file)
+
+loading_conditions = loading_condition_config["parameters"]["loading-cond"]["values"]
+if not loading_conditions:
+    raise ValueError(f"No loading conditions defined in {sweep_config_path}")
 
 
 # Read the configuration
@@ -105,6 +110,9 @@ for param_name, param_values in config.wandb.params.items():
     else:
         raise ValueError(f"Parameter '{param_name}' must define either 'values' or 'min'/'max'.")
 
+# The sweep config uses a hyphenated key; use an underscore for wandb.config access.
+sweep_config["parameters"]["loading_cond"] = {"values": loading_conditions}
+
 # Initialize a new sweep
 sweep_id = wandb.sweep(sweep_config, project="BPMF")
 
@@ -148,7 +156,7 @@ def train():
         positional_encoding=config.data.positional_encoding,
         encode_input=config.data.encode_input,
         encode_output=config.data.encode_output,
-        loading_cond=LOADING_COND,
+        loading_cond=cfg.loading_cond,
     )
     data_processor = data_processor.to(device)
 
@@ -328,4 +336,3 @@ wandb.agent(sweep_id, function=train)
 
 if config.wandb.log and is_logger:
  wandb.finish()
-
