@@ -1181,7 +1181,7 @@ def evaluate_checkpoint(checkpoint_path=None):
         fno_block_precision=model_cfg.fno_block_precision,
         complex_data=False,
     ).to(device)
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
     if "state_dict" not in checkpoint:
         raise ValueError(f"Checkpoint does not contain a state_dict: {checkpoint_path}")
     model.load_state_dict(checkpoint["state_dict"])
@@ -1206,22 +1206,23 @@ def evaluate_checkpoint(checkpoint_path=None):
         encode_output=config.data.encode_output,
     )
     data_processor = data_processor.to(device)
+    data_processor.eval()  # un-normalize outputs, keep targets raw
 
     print(f"Checkpoint: {checkpoint_path}")
     for resolution, test_loader in test_loaders.items():
         relative_errors = []
         with torch.no_grad():
-            for sample in test_loader.dataset:
-                sample = data_processor.preprocess(sample, batched=False)
-                inputs = sample["x"].unsqueeze(0).to(device)
-                prediction = model(inputs)
-                prediction, processed = data_processor.postprocess(prediction, sample)
-                target = processed["y"]
-                prediction = prediction.squeeze(0) if prediction.ndim == target.ndim + 1 else prediction
-                target = target.squeeze(0) if target.ndim == prediction.ndim + 1 else target
-                error = torch.linalg.vector_norm((prediction - target).reshape(-1))
-                scale = torch.linalg.vector_norm(target.reshape(-1)).clamp_min(torch.finfo(target.dtype).eps)
-                relative_errors.append((error / scale).item())
+            for batch in test_loader:
+                batch = data_processor.preprocess(batch, batched=True)
+                prediction = model(batch["x"].to(device))
+                prediction, batch = data_processor.postprocess(prediction, batch)
+                target = batch["y"].to(device)
+                # per-sample relative L2 error
+                diff = (prediction - target).flatten(start_dim=1)
+                ref = target.flatten(start_dim=1)
+                relative_errors.extend(
+                    (torch.linalg.vector_norm(diff, dim=1) / torch.linalg.vector_norm(ref, dim=1)).tolist()
+                )
         if not relative_errors:
             raise ValueError(f"Test loader for resolution {resolution} is empty")
         print(
