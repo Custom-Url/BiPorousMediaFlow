@@ -1,9 +1,9 @@
 # %%
 import os
+import glob
 import torch
 import argparse
 import datetime
-import wandb
 import copy
 import numpy as np
 from neuralop.models.fno import TFNO, FNO
@@ -23,9 +23,21 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-device = "cuda"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 torch.manual_seed(0)
 np.random.seed(0)
+
+# Override BPMF_DATA_ROOT when the dataset is not at the training script's default path.
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CODE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_ROOT = os.environ.get(
+    "BPMF_DATA_ROOT", "/mnt/data2/yc2634/ML/StokesBrinkman"
+)
+CHECKPOINT_DIR = os.environ.get(
+    "BPMF_CHECKPOINT_DIR", os.path.join(CODE_DIR, "save_dir")
+)
+FIGURES_DIR = os.path.join(CODE_DIR, "figures")
+os.makedirs(FIGURES_DIR, exist_ok=True)
 
 
 def str2bool(value):
@@ -212,7 +224,10 @@ def load_outputs_loss_functions(
                 out_arr[i, j] = test_data["y"].to(device)
         else:
             checkpoint = torch.load(
-                FOLDER_DIR + f"/<checkpoints_dir>/{model_checkpoint_arr[i-2]}_last.pt"
+                os.path.join(
+                    FOLDER_DIR, CHECKPOINT_DIR, f"{model_checkpoint_arr[i-2]}_last.pt"
+                ),
+                map_location=device,
             )
             model.load_state_dict(checkpoint["state_dict"])
             with torch.no_grad():
@@ -441,7 +456,7 @@ def calc_macro_permeability(model0, model1, res, save_path=None):
     for velo_dir in range(2):
         if velo_dir == 0:
             for RES in RESs:
-                root_dir = f"<data_root_dir>/R{RES}/"
+                root_dir = f"{DATA_ROOT}/R{RES}/"
                 _, test_loaders[velo_dir][RES], data_processor0 = load_stokesbrinkman(
                     root_dir=root_dir,
                     n_train=700,
@@ -662,7 +677,7 @@ def calc_macro_permeability_train(save_path=None):
     RES = 64
     train_loaders = ({}, {})
     for velo_dir in range(2):
-        root_dir = f"<data_root_dir>/R{RES}/"
+        root_dir = f"{DATA_ROOT}/R{RES}/"
         train_loaders[velo_dir][RES], _, data_processor = load_stokesbrinkman(
             root_dir=root_dir,
             n_train=700,
@@ -802,7 +817,7 @@ def test_on_unseen_data(loading_cond):
     Args:
         loading_cond: Loading condition for the test data.
     """
-    root_dir = "<data_root_dir>/R128"
+    root_dir = f"{DATA_ROOT}/R128"
     train_loader, test_loaders, data_processor = load_stokesbrinkman(
         root_dir=root_dir,
         n_train=1,
@@ -979,7 +994,7 @@ def plot_images(test_samples, data_processor, model):
 
     fig.suptitle("Inputs, ground-truth output and prediction.", y=0.98)
     plt.tight_layout()
-    plt.savefig(f"<figures_dir>/{CHECKPOINT}_last.png")
+    plt.savefig(f"{FIGURES_DIR}/{CHECKPOINT}_last.png")
     fig.show()
 
 
@@ -1052,7 +1067,10 @@ def compute_l2_loss_funcs(
 
     for i in range(len(model_checkpoint_arr) + 1):
         checkpoint = torch.load(
-            FOLDER_DIR + f"/<checkpoints_dir>/{model_checkpoint_arr[i-1]}_last.pt"
+            os.path.join(
+                FOLDER_DIR, CHECKPOINT_DIR, f"{model_checkpoint_arr[i-1]}_last.pt"
+            ),
+            map_location=device,
         )
         model.load_state_dict(checkpoint["state_dict"])
         with torch.no_grad():
@@ -1119,292 +1137,101 @@ def compute_frobenius_norm(K_pred, K_gt):
     return fro_norm
 
 
-# %%
-if __name__ == "__main__":
-    entity = "crunkel-research"
-    project = "DualScaleFlow"
+def evaluate_checkpoint(checkpoint_path=None):
+    """Evaluate one local checkpoint on the configured test set."""
+    from configmypy import ConfigPipeline, YamlConfig
 
-    model_type = "fno"
-    # model_type = "tfno"
+    config_path = os.path.join(PROJECT_ROOT, "config", "BPMF_config.yaml")
+    config = ConfigPipeline(
+        [YamlConfig(config_path, config_name="default", config_folder=os.path.dirname(config_path))]
+    ).read_conf()
 
-    loading_cond = "[1,0]"
-    # loading_cond = "[0,1]"
+    if checkpoint_path is None:
+        checkpoints = glob.glob(os.path.join(CHECKPOINT_DIR, "*_last.pt"))
+        if not checkpoints:
+            raise FileNotFoundError(
+                f"No *_last.pt checkpoints found in {CHECKPOINT_DIR}. "
+                "Set BPMF_CHECKPOINT_DIR or pass a checkpoint path."
+            )
+        checkpoint_path = max(checkpoints, key=os.path.getmtime)
+    elif not os.path.isabs(checkpoint_path):
+        checkpoint_path = os.path.abspath(checkpoint_path)
+    if not os.path.isfile(checkpoint_path):
+        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
 
-    root_dir = r"<data_root_dir>/R64"
-    train_loader, test_loaders, data_processor = load_stokesbrinkman(
+    model_cfg = config.fno2d
+    model = FNO(
+        n_modes=[model_cfg.n_modes_height, model_cfg.n_modes_width],
+        in_channels=model_cfg.in_channels,
+        out_channels=model_cfg.out_channels,
+        n_layers=model_cfg.n_layers,
+        hidden_channels=model_cfg.hidden_channels,
+        channel_mlp_dropout=model_cfg.channel_mlp_dropout,
+        fno_skip=model_cfg.skip,
+        norm=model_cfg.norm,
+        stabilizer=model_cfg.stabilizer,
+        separable=model_cfg.separable,
+        factorization=model_cfg.factorization,
+        rank=model_cfg.rank,
+        fixed_rank_modes=model_cfg.fixed_rank_modes,
+        implementation=model_cfg.implementation,
+        use_channel_mlp=model_cfg.use_mlp,
+        channel_mlp_expansion=model_cfg.mlp_expansion,
+        domain_padding=model_cfg.domain_padding,
+        fno_block_precision=model_cfg.fno_block_precision,
+        complex_data=False,
+    ).to(device)
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    if "state_dict" not in checkpoint:
+        raise ValueError(f"Checkpoint does not contain a state_dict: {checkpoint_path}")
+    model.load_state_dict(checkpoint["state_dict"])
+    model.eval()
+
+    root_dir = os.path.join(DATA_ROOT, "R64")
+    if not os.path.isdir(root_dir):
+        raise FileNotFoundError(
+            f"Dataset directory not found: {root_dir}. Set BPMF_DATA_ROOT to the directory containing R64."
+        )
+    _, test_loaders, data_processor = load_stokesbrinkman(
         root_dir=root_dir,
-        n_train=700,
-        n_tests=[100],
-        batch_size=1,
-        test_batch_sizes=[1],
-        test_resolutions=[64],
-        train_resolution=64,
+        n_train=config.data.n_train,
+        n_tests=config.data.n_tests,
+        batch_size=config.data.batch_size,
+        test_batch_sizes=config.data.test_batch_sizes,
+        test_resolutions=config.data.test_resolutions,
+        train_resolution=config.data.train_resolution,
         grid_boundaries=[[0, 1], [0, 1]],
-        positional_encoding=True,
-        encode_input=False,
-        encode_output=False,
-        encoding="channel-wise",
-        loading_cond=loading_cond,
+        positional_encoding=config.data.positional_encoding,
+        encode_input=config.data.encode_input,
+        encode_output=config.data.encode_output,
     )
     data_processor = data_processor.to(device)
-    # create a tensorised FNO model
-    if model_type == "tfno":
-        model = TFNO(
-            n_modes=(64, 64),
-            in_channels=3,
-            out_channels=2,
-            hidden_channels=32,
-            projection_channels=64,
-            factorization="tucker",
-            rank=0.42,
+
+    print(f"Checkpoint: {checkpoint_path}")
+    for resolution, test_loader in test_loaders.items():
+        relative_errors = []
+        with torch.no_grad():
+            for sample in test_loader.dataset:
+                sample = data_processor.preprocess(sample, batched=False)
+                inputs = sample["x"].unsqueeze(0).to(device)
+                prediction = model(inputs)
+                prediction, processed = data_processor.postprocess(prediction, sample)
+                target = processed["y"]
+                prediction = prediction.squeeze(0) if prediction.ndim == target.ndim + 1 else prediction
+                target = target.squeeze(0) if target.ndim == prediction.ndim + 1 else target
+                error = torch.linalg.vector_norm((prediction - target).reshape(-1))
+                scale = torch.linalg.vector_norm(target.reshape(-1)).clamp_min(torch.finfo(target.dtype).eps)
+                relative_errors.append((error / scale).item())
+        if not relative_errors:
+            raise ValueError(f"Test loader for resolution {resolution} is empty")
+        print(
+            f"Resolution {resolution}: relative L2 error "
+            f"{sum(relative_errors) / len(relative_errors):.6g} "
+            f"({len(relative_errors)} samples)"
         )
-    # create an FNO model
-    elif model_type == "fno":
-        model = FNO(
-            n_modes=(64, 64),
-            in_channels=3,
-            out_channels=2,
-            hidden_channels=32,
-            projection_channels=64,
-        )
-    else:
-        raise ValueError(f"Model type {model_type} not recognised.")
-    model = model.to(device)
-    save_dir = "<checkpoints_dir>"
-
-    trainer = Trainer(
-        model=model,
-        n_epochs=1,
-        device=device,
-        callbacks=[
-            CheckpointCallback(
-                save_dir=save_dir,
-                save_best=False,
-                save_interval=10,
-                save_optimizer=True,
-                save_scheduler=True,
-            ),
-            BasicLoggerCallback(),
-        ],
-        data_processor=data_processor,
-        wandb_log=True,
-        log_test_interval=3,
-        use_distributed=False,
-        verbose=True,
-    )
-
-    FOLDER_DIR = "<project_root_dir>"
-    if loading_cond == "[1,0]":
-        # TFNO checkpoints loading cond U=[1,0]
-        if model_type == "tfno":
-            checkpoint_arr = [
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-            ]
-        elif model_type == "fno":
-            # FNO checkpoints loading cond U=[1,0]
-            checkpoint_arr = [
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-            ]
-    elif loading_cond == "[0,1]":
-        # TFNO checkpoints loading cond U=[0, 1]
-        if model_type == "tfno":
-            checkpoint_arr = [
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-            ]
-        elif model_type == "fno":
-            # FNO checkpoints loading cond U=[0, 1]
-            checkpoint_arr = [
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-                "<timestamp_placeholder>",
-            ]
-
-    l2_loss_arr = compute_l2_loss_funcs(
-        model, FOLDER_DIR, checkpoint_arr, test_loaders[64].dataset, data_processor
-    )
-    print(l2_loss_arr)
 
 
-# %%
 if __name__ == "__main__":
-    # Replace WandB initialization with placeholders
-    api = wandb.Api()
-    run = wandb.init(entity="<wandb_entity>", project="<wandb_project>", id="<wandb_run_id>", resume="None")
+    import sys
 
-    # Access the config of the run
-    config = run.config
-
-    loading_cond0 = "[0,1]"
-    loading_cond1 = "[1,0]"
-    RES = 64
-    # Define placeholders for checkpoints
-    CHECKPOINT0 = "<checkpoint_0_placeholder>"
-    CHECKPOINT1 = "<checkpoint_1_placeholder>"
-
-    # load the data
-    root_dir = r"<data_root_dir>/R64"
-    train_loader1, test_loaders1, data_processor1 = load_stokesbrinkman(
-        root_dir=root_dir,
-        n_train=config.n_train,
-        n_tests=config.n_tests,
-        batch_size=config.batch_size,
-        test_batch_sizes=config.test_batch_sizes,
-        test_resolutions=config.test_resolutions,
-        train_resolution=config.train_resolution,
-        grid_boundaries=[[0, 1], [0, 1]],
-        positional_encoding=config.positional_encoding,
-        encode_input=config.encode_input,
-        encode_output=config.encode_output,
-        encoding=config.encoding,
-        loading_cond=loading_cond1,
-    )
-    data_processor1 = data_processor1.to(device)
-    train_loader0, test_loaders0, data_processor0 = load_stokesbrinkman(
-        root_dir=root_dir,
-        n_train=config.n_train,
-        n_tests=config.n_tests,
-        batch_size=config.batch_size,
-        test_batch_sizes=config.test_batch_sizes,
-        test_resolutions=config.test_resolutions,
-        train_resolution=config.train_resolution,
-        grid_boundaries=[[0, 1], [0, 1]],
-        positional_encoding=config.positional_encoding,
-        encode_input=config.encode_input,
-        encode_output=config.encode_output,
-        encoding=config.encoding,
-        loading_cond=loading_cond0,
-    )
-    data_processor0 = data_processor0.to(device)
-    # create a tensorised FNO model
-    if config.model_type == "tfno":
-        model = TFNO(
-            n_modes=(64, 64),
-            in_channels=3,
-            out_channels=2,
-            hidden_channels=32,
-            projection_channels=64,
-            factorization="tucker",
-            rank=0.42,
-        )
-    # create an FNO model
-    elif config.model_type == "fno":
-        model = FNO(
-            n_modes=(64, 64),
-            in_channels=3,
-            out_channels=2,
-            hidden_channels=32,
-            projection_channels=64,
-        )
-    else:
-        raise ValueError(f"Model type {config.model_type} not recognised.")
-    model0 = model.to(device)
-
-    model1 = copy.deepcopy(model0)
-
-    FOLDER_DIR = "<project_root_dir>"
-
-    SAVE_PATH = os.path.join(
-        FOLDER_DIR, f"figures/K_{config.model_type}_{CHECKPOINT1}_{RES}n.png"
-    )
-    checkpoint1 = torch.load(FOLDER_DIR + f"/<checkpoints_dir>/{CHECKPOINT1}_last.pt")
-    checkpoint0 = torch.load(FOLDER_DIR + f"/<checkpoints_dir>/{CHECKPOINT0}_last.pt")
-    model1.load_state_dict(checkpoint1["state_dict"])
-    model0.load_state_dict(checkpoint0["state_dict"])
-    print(config.model_type)
-
-    # Plot the prediction, and compare with the ground-truth
-
-    model1.to(device)
-    model0.to(device)
-
-    (
-        K11_true,
-        K11_pred,
-        K12_true,
-        K12_pred,
-        K21_true,
-        K21_pred,
-        K22_true,
-        K22_pred,
-    ) = calc_macro_permeability(
-        model0=model0, model1=model1, res=RES, save_path=SAVE_PATH
-    )
-    K_pred = torch.tensor([[K11_pred, K12_pred], [K21_pred, K22_pred]]).permute(2, 0, 1)
-    K_true = torch.tensor([[K11_true, K12_true], [K21_true, K22_true]]).permute(2, 0, 1)
-
-    sup_norm = compute_sup_norm(K_pred, K_true)
-    print(f"Sup norm: {sup_norm:.4f}")
-    fro_norm = compute_frobenius_norm(K_pred, K_true)
-    print(f"Fro norm: {fro_norm:.4f}")
-
-    run.finish()
-
-
-# %%
-def plot_beta():
-    root_dir = r"<data_root_dir>/R64"
-    train_loader, test_loaders, data_processor = load_stokesbrinkman(
-        root_dir=root_dir,
-        n_train=700,
-        n_tests=[100],
-        batch_size=16,
-        test_batch_sizes=[1],
-        test_resolutions=[64],
-        train_resolution=64,
-        grid_boundaries=[[0, 1], [0, 1]],
-        positional_encoding=True,
-        encode_input=False,
-        encode_output=False,
-        encoding="channel-wise",
-    )
-    beta_test = torch.zeros((100, 4096))
-    beta_train = torch.zeros((700, 4096))
-    for i, data in enumerate(test_loaders[64]):
-        # plot histogram of beta values
-        beta_test[i] = data["x"][0].flatten()
-    plt.rcParams["font.size"] = "12"
-    plt.hist(beta_test.flatten(), bins=100, log=True, density=True)
-    plt.xscale("log")
-    plt.gca().xaxis.set_major_locator(LogLocator(base=10.0))
-    plt.xlabel(r"Distribution of $\log_{10}(\beta)$ values in test dataset.")
-    plt.savefig("<figures_dir>/beta_test.png", dpi=300)
-    plt.show()
-    print(beta_test.min(), beta_test.max())
-
-    for j, data in enumerate(train_loader.dataset):
-        # plot histogram of beta values
-        beta_train[j] = data["x"][0].flatten()
-    plt.hist(beta_train.flatten(), bins=100, log=True, density=True)
-    plt.xscale("log")
-    plt.gca().xaxis.set_major_locator(LogLocator(base=10.0))
-    plt.xlabel(r"Distribution of $\log_{10}(\beta)$ values in training dataset.")
-    plt.savefig("<figures_dir>/beta_train.png", dpi=300)
-    plt.show()
-    print(beta_train.min(), beta_train.max())
-
-
-# %%
-plot_beta()
-# %%
+    evaluate_checkpoint(sys.argv[1] if len(sys.argv) > 1 else None)

@@ -1,5 +1,6 @@
 import torch
 import sys
+import os
 import datetime
 from neuralop.models.fno import FNO
 
@@ -309,8 +310,9 @@ def train():
             "state_dict": model.state_dict(),
             "optimizer": optimizer.state_dict(),
         }
+        os.makedirs(save_dir, exist_ok=True)
         torch.save(
-            checkpoint, f"checkpoint_save_dir/{DATE}_last.pt"
+            checkpoint, f"{save_dir}/{DATE}_last.pt"
         )
 
 # Run the sweep
