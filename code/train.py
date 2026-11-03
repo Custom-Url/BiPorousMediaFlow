@@ -34,7 +34,7 @@ config_name = "default"
 pipe = ConfigPipeline(
     [
         YamlConfig(
-            "./sweep_config.yaml", config_name="default", config_folder="../BiPorousMediaFlow/config"
+            "./BPMF_config.yaml", config_name="default", config_folder="../BiPorousMediaFlow/config"
         ),
         ArgparseConfig(infer_types=True, config_name=None, config_file=None),
         YamlConfig(config_folder="../config"),
