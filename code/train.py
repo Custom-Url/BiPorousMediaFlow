@@ -18,6 +18,11 @@ from utils.brinkman_amitex import load_stokesbrinkman
 device = "cuda"
 torch.manual_seed(0)
 
+# Loading condition: "[1,0]" (default) or "[0,1]"; set via BPMF_LOADING_COND
+LOADING_COND = os.environ.get("BPMF_LOADING_COND", "[1,0]")
+if LOADING_COND not in ("[1,0]", "[0,1]"):
+    raise ValueError(f"BPMF_LOADING_COND must be [1,0] or [0,1], got {LOADING_COND}")
+
 
 # Read the configuration
 config_name = "default"
@@ -142,7 +147,8 @@ def train():
         grid_boundaries=[[0, 1], [0, 1]],
         positional_encoding=config.data.positional_encoding,
         encode_input=config.data.encode_input,
-        encode_output=config.data.encode_output
+        encode_output=config.data.encode_output,
+        loading_cond=LOADING_COND,
     )
     data_processor = data_processor.to(device)
 
@@ -314,6 +320,7 @@ def train():
         torch.save(
             checkpoint, f"{save_dir}/{DATE}_last.pt"
         )
+        print(f"Saved checkpoint {save_dir}/{DATE}_last.pt (loading_cond={LOADING_COND})")
 
 # Run the sweep
 wandb.agent(sweep_id, function=train)
