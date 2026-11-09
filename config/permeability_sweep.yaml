@@ -1,0 +1,21 @@
+method: bayes
+metric:
+  name: permeability/best_relative_frobenius
+  goal: minimize
+parameters:
+  learning_rate:
+    distribution: log_uniform_values
+    min: 0.0005
+    max: 0.004
+  weight_decay:
+    distribution: log_uniform_values
+    min: 0.000001
+    max: 0.0001
+  epochs:
+    value: 100
+  batch_size:
+    value: 16
+  lr_decay_gamma:
+    values: [0.5, 0.8]
+  lr_decay_step:
+    value: 25
