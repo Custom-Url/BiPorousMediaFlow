@@ -7,6 +7,7 @@ import json
 import math
 import os
 import time
+import uuid
 from pathlib import Path
 
 import torch
@@ -95,34 +96,106 @@ def permeability_matrix(inputs, velocities, device):
     return torch.linalg.solve(matrix, torch.eye(2, device=device))
 
 
-def pressure_gradient_losses(log_beta, prediction, target):
-    """Sum per-sample relative errors in pressure-gradient fields and their means."""
+def pressure_gradient(log_beta, velocity):
     beta = torch.where(log_beta > 0, torch.pow(10.0, log_beta), log_beta)
     if not torch.isfinite(beta).all():
         raise ValueError("Non-finite decoded beta in pressure-gradient loss")
-    height, width = prediction.shape[-2:]
-
-    def gradient(velocity):
-        return (compute_laplacian_fd_2d(
-            velocity, dx=1 / height, dy=1 / width, fix_x_bnd=True, fix_y_bnd=True
-        ) - beta * velocity)
-
-    predicted_gradient = gradient(prediction)
-    with torch.no_grad():
-        target_gradient = gradient(target)
-    if not torch.isfinite(predicted_gradient).all() or not torch.isfinite(target_gradient).all():
+    if log_beta.ndim != 4 or log_beta.shape[1] != 1 or velocity.ndim != 4 or velocity.shape[1] != 2:
+        raise ValueError("Expected beta [B,1,H,W] and velocity [B,2,H,W]")
+    if log_beta.shape[0] != velocity.shape[0] or log_beta.shape[-2:] != velocity.shape[-2:]:
+        raise ValueError("Beta and velocity batch/spatial dimensions differ")
+    height, width = velocity.shape[-2:]
+    gradient = compute_laplacian_fd_2d(
+        velocity, dx=1 / height, dy=1 / width, fix_x_bnd=True, fix_y_bnd=True
+    ) - beta * velocity
+    if not torch.isfinite(gradient).all():
         raise ValueError("Non-finite pressure gradient in training loss")
+    return gradient
+
+
+PRESSURE_ABSOLUTE_FLOOR = 1e-12
+PRESSURE_DATASET_FLOOR_FRACTION = 0.01
+PRESSURE_MEAN_FIELD_FRACTION = 0.1
+
+
+def pressure_gradient_losses(log_beta, prediction, target, normalization="legacy", reference_scale=None):
+    """Return summed per-sample field/mean losses and detached denominator statistics."""
+    predicted_gradient = pressure_gradient(log_beta, prediction)
+    with torch.no_grad():
+        target_gradient = pressure_gradient(log_beta, target)
     pred_mean = predicted_gradient.mean(dim=(-2, -1))
     target_mean = target_gradient.mean(dim=(-2, -1))
     field_norm = torch.linalg.vector_norm(target_gradient.flatten(start_dim=1), dim=1)
     mean_norm = torch.linalg.vector_norm(target_mean, dim=1)
-    if (field_norm <= 0).any() or (mean_norm <= 0).any():
-        raise ValueError("Zero target pressure gradient or mean in training loss")
-    field_error = torch.linalg.vector_norm(
+    field_error_norm = torch.linalg.vector_norm(
         (predicted_gradient - target_gradient).flatten(start_dim=1), dim=1
-    ) / field_norm
-    mean_error = torch.linalg.vector_norm(pred_mean - target_mean, dim=1) / mean_norm
-    return field_error.sum(), mean_error.sum()
+    )
+    if normalization == "legacy":
+        if (field_norm <= 0).any() or (mean_norm <= 0).any():
+            raise ValueError("Zero target pressure gradient or mean in legacy training loss")
+        field_denom, mean_denom = field_norm, mean_norm
+        numerator = field_error_norm
+    elif normalization == "stable":
+        if reference_scale is None or not math.isfinite(reference_scale) or reference_scale < 0:
+            raise ValueError("Stable pressure normalization requires a finite non-negative training reference scale")
+        spatial_factor = math.sqrt(target.shape[-2] * target.shape[-1])
+        field_rms = field_norm / spatial_factor
+        floor = max(PRESSURE_ABSOLUTE_FLOOR, PRESSURE_DATASET_FLOOR_FRACTION * reference_scale)
+        field_denom = field_rms.clamp_min(floor)
+        mean_denom = torch.maximum(mean_norm, (PRESSURE_MEAN_FIELD_FRACTION * field_rms).clamp_min(floor))
+        numerator = field_error_norm / spatial_factor
+    else:
+        raise ValueError(f"Unknown pressure normalization: {normalization}")
+    field_error = numerator / field_denom
+    mean_error = torch.linalg.vector_norm(pred_mean - target_mean, dim=1) / mean_denom
+    return field_error.sum(), mean_error.sum(), {
+        "target_field_rms": (field_norm / math.sqrt(target.shape[-2] * target.shape[-1])).detach(),
+        "target_mean_norm": mean_norm.detach(),
+        "field_denominator": field_denom.detach(),
+        "mean_denominator": mean_denom.detach(),
+        "mean_clamped": (mean_denom > mean_norm).detach().float(),
+    }
+
+
+def pressure_reference_scale(x, y, device, batch_size):
+    """Median target-gradient spatial RMS over the training set for one direction."""
+    scales = []
+    with torch.no_grad():
+        for start in range(0, len(x), batch_size):
+            raw_x, raw_y = x[start:start + batch_size], y[start:start + batch_size]
+            gradient = pressure_gradient(raw_x.to(device), raw_y.to(device))
+            scale = torch.linalg.vector_norm(gradient.flatten(start_dim=1), dim=1)
+            scales.append((scale / math.sqrt(raw_y.shape[-2] * raw_y.shape[-1])).cpu())
+    if not scales:
+        raise ValueError("Training data is empty")
+    return torch.cat(scales).median().item()
+
+
+def gradient_diagnostics(components, model):
+    """Gradient norms and pairwise cosine similarities on all trainable model parameters."""
+    parameters = [p for p in model.parameters() if p.requires_grad]
+    vectors = {}
+    for name, loss in components.items():
+        gradients = torch.autograd.grad(loss, parameters, retain_graph=True, allow_unused=True)
+        vectors[name] = [g.detach() if g is not None else torch.zeros_like(p)
+                         for p, g in zip(parameters, gradients)]
+    result = {}
+    norms = {}
+    for name, vector in vectors.items():
+        norm = torch.sqrt(sum((g.abs() ** 2).sum() for g in vector))
+        if not torch.isfinite(norm):
+            raise ValueError(f"Non-finite {name} gradient norm")
+        norms[name] = norm
+        result[f"grad_norm_{name}"] = norm.item()
+    names = list(vectors)
+    for i, name in enumerate(names):
+        for other in names[i + 1:]:
+            valid = norms[name] > 0 and norms[other] > 0
+            result[f"grad_cosine_defined_{name}_{other}"] = int(valid)
+            if valid:
+                dot = sum((a.conj() * b).real.sum() for a, b in zip(vectors[name], vectors[other]))
+                result[f"grad_cosine_{name}_{other}"] = (dot / (norms[name] * norms[other])).item()
+    return result
 
 
 LOG_METRIC_RELATIVE_FLOOR = 1e-12
@@ -341,17 +414,59 @@ def dataset_hash(identifiers):
     return hashlib.sha256("\n".join(identifiers).encode()).hexdigest()
 
 
-def train_run(train_data, val_data, base, deadline, output_dir, validation_interval, data_root):
-    with wandb.init() as run:
+WINNER_SETTINGS = {
+    "learning_rate": 0.00314485937, "weight_decay": 3.20830984e-6,
+    "lr_decay_gamma": 0.5, "lr_decay_step": 25, "batch_size": 16, "epochs": 100,
+}
+
+
+def controlled_config(checkpoint, train_ids, validation_ids, field_weight, mean_weight, normalization):
+    if checkpoint.get("format") != "bpmf-permeability-pair-v1" or checkpoint.get("run_id") != "z6a3nv6k":
+        raise ValueError("Controlled comparison requires the trusted z6a3nv6k best_pair.pt checkpoint")
+    cfg = checkpoint["config"]
+    for key, value in WINNER_SETTINGS.items():
+        if key not in cfg or not math.isclose(float(cfg[key]), value, rel_tol=1e-8, abs_tol=0):
+            raise ValueError(f"Winner checkpoint {key} does not match the recorded settings")
+    for key, expected in (("architecture", "TFNO"), ("n_modes", [32, 32]),
+                          ("hidden_channels", 32), ("rank", 0.42), ("seed", 0),
+                          ("factorization", "tucker"), ("directions", list(DIRECTIONS))):
+        if cfg.get(key) != expected:
+            raise ValueError(f"Winner checkpoint {key} does not match the recorded architecture or seed")
+    if dataset_hash(train_ids) != cfg["train_ids_sha256"] or dataset_hash(validation_ids) != cfg["validation_ids_sha256"]:
+        raise ValueError("Dataset IDs do not match the winner checkpoint")
+    for key in ("encode_input", "encode_output"):
+        if not isinstance(cfg.get(key), bool):
+            raise ValueError(f"Winner checkpoint does not contain a valid {key} setting")
+    result = dict({key: cfg[key] for key in WINNER_SETTINGS}, pressure_field_weight=field_weight,
+                  pressure_mean_weight=mean_weight, pressure_normalization=normalization,
+                  comparison_baseline_run="z6a3nv6k")
+    loss_settings(result)
+    return result, {"data": {"encode_input": cfg["encode_input"], "encode_output": cfg["encode_output"]}}
+
+
+def loss_settings(cfg):
+    if "pressure_field_weight" in cfg and "pressure_mean_weight" in cfg:
+        field_weight = float(cfg["pressure_field_weight"])
+        mean_weight = float(cfg["pressure_mean_weight"])
+        normalization = cfg.get("pressure_normalization", "stable")
+    elif "pressure_gradient_weight" in cfg:
+        field_weight = mean_weight = float(cfg["pressure_gradient_weight"])
+        normalization = "legacy"
+    else:
+        raise ValueError("Sweep has no pressure loss weights; create a new sweep")
+    if not all(math.isfinite(w) and w >= 0 for w in (field_weight, mean_weight)):
+        raise ValueError("Pressure weights must be finite and non-negative")
+    if normalization not in ("stable", "legacy"):
+        raise ValueError("pressure_normalization must be stable or legacy")
+    return field_weight, mean_weight, normalization
+
+
+def train_run(train_data, val_data, base, deadline, output_dir, validation_interval, data_root,
+              run_config=None, wandb_options=None, gradient_interval=10):
+    with wandb.init(config=run_config, **(wandb_options or {})) as run:
         cfg = run.config
-        if "pressure_gradient_weight" not in cfg:
-            raise ValueError(
-                "This sweep has no pressure_gradient_weight parameter; start a new sweep "
-                "without --sweep-id to use the pressure-gradient loss"
-            )
-        pressure_weight = float(cfg.pressure_gradient_weight)
-        if not math.isfinite(pressure_weight) or pressure_weight < 0:
-            raise ValueError("pressure_gradient_weight must be finite and non-negative")
+        field_weight, mean_weight, normalization = loss_settings(cfg)
+        pressure_enabled = bool(field_weight or mean_weight)
         torch.manual_seed(0)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         x1, y1 = train_data[1:]
@@ -373,6 +488,10 @@ def train_run(train_data, val_data, base, deadline, output_dir, validation_inter
             schedulers.append(scheduler)
             loaders.append(DataLoader(TensorDataset(x, y), batch_size=int(cfg.batch_size), shuffle=True))
 
+        scales = [None, None]
+        if pressure_enabled and normalization == "stable":
+            scales = [pressure_reference_scale(x, y, device, int(cfg.batch_size))
+                      for x, y in train_fields]
         run.config.update({
             "architecture": "TFNO", "n_modes": [32, 32], "hidden_channels": 32,
             "factorization": "tucker", "rank": 0.42, "directions": list(DIRECTIONS),
@@ -386,10 +505,15 @@ def train_run(train_data, val_data, base, deadline, output_dir, validation_inter
                 "/ max(abs(log(abs(K_true)))); exact/tiny entries are floored "
                 "at max(abs(K_pred),abs(K_true))*1e-12"
             ),
-            "training_loss": "H1 + pressure_gradient_weight * (relative_field + relative_mean)",
+            "training_loss": "H1 + pressure_field_weight * field + pressure_mean_weight * mean",
+            "resolved_pressure_field_weight": field_weight,
+            "resolved_pressure_mean_weight": mean_weight,
+            "resolved_pressure_normalization": normalization,
+            "pressure_reference_scales": scales,
+            "pressure_gradient_diagnostic_interval": gradient_interval,
             "pressure_gradient_loss_definition": (
-                "sum of per-sample relative L2 errors of physical pressure-gradient fields "
-                "and their spatial means, with finite differences on a unit square"
+                "sum per-sample pressure-gradient field and mean errors; stable mode uses "
+                "training-reference and mean/field denominator floors"
             ),
             "seed": 0, "validation_interval": validation_interval,
             "train_directory": str(data_root / "R64"),
@@ -399,16 +523,19 @@ def train_run(train_data, val_data, base, deadline, output_dir, validation_inter
         loss_fn = H1Loss(d=2)
         best = math.inf
         best_path = Path(output_dir) / run.id / "best_pair.pt"
+        if best_path.exists():
+            raise FileExistsError(f"Refusing to overwrite an existing checkpoint: {best_path}")
         best_path.parent.mkdir(parents=True, exist_ok=True)
         completed_epochs = 0
         for epoch in range(1, int(cfg.epochs) + 1):
-            epoch_losses = []
+            epoch_losses, epoch_diagnostics = [], [{}, {}]
             for d in range(2):
                 models[d].train()
                 totals, samples = {"h1": 0.0, "pressure_field": 0.0,
                                    "pressure_mean": 0.0, "total": 0.0}, 0
+                denominator_stats = {}
                 in_norm, out_norm = normalizers[d]
-                for x, y in loaders[d]:
+                for batch_index, (x, y) in enumerate(loaders[d]):
                     x, y = x.to(device), y.to(device)
                     raw_x, raw_y = x, y
                     if in_norm is not None:
@@ -418,13 +545,35 @@ def train_run(train_data, val_data, base, deadline, output_dir, validation_inter
                     optimizers[d].zero_grad(set_to_none=True)
                     prediction = models[d](x)
                     h1 = loss_fn(prediction, y)
-                    if pressure_weight:
+                    if pressure_enabled:
                         physical_prediction = (out_norm.inverse_transform(prediction)
                                                if out_norm is not None else prediction)
-                        field, mean = pressure_gradient_losses(raw_x, physical_prediction, raw_y)
-                        loss = h1 + pressure_weight * (field + mean)
+                        field, mean, stats = pressure_gradient_losses(
+                            raw_x, physical_prediction, raw_y, normalization, scales[d]
+                        )
+                        if normalization == "legacy" and field_weight == mean_weight:
+                            loss = h1 + field_weight * (field + mean)
+                        else:
+                            loss = h1
+                            if field_weight:
+                                loss = loss + field_weight * field
+                            if mean_weight:
+                                loss = loss + mean_weight * mean
                         totals["pressure_field"] += field.item()
                         totals["pressure_mean"] += mean.item()
+                        for key, values in stats.items():
+                            denominator_stats.setdefault(key, []).append(values.cpu())
+                        if batch_index == 0 and (epoch == 1 or epoch % gradient_interval == 0):
+                            components = {"h1": h1}
+                            if field_weight:
+                                components["pressure_field"] = field
+                            if mean_weight:
+                                components["pressure_mean"] = mean
+                            diagnostics = gradient_diagnostics(components, models[d])
+                            for name, weight in (("pressure_field", field_weight), ("pressure_mean", mean_weight)):
+                                if weight:
+                                    diagnostics[f"grad_norm_weighted_{name}"] = diagnostics[f"grad_norm_{name}"] * weight
+                            epoch_diagnostics[d] = diagnostics
                     else:
                         loss = h1
                     if not torch.isfinite(loss):
@@ -434,7 +583,16 @@ def train_run(train_data, val_data, base, deadline, output_dir, validation_inter
                     totals["h1"] += h1.item()
                     totals["total"] += loss.item()
                     samples += len(x)
-                epoch_losses.append({key: value / samples for key, value in totals.items()})
+                metrics_for_direction = {key: value / samples for key, value in totals.items()}
+                for key, values in denominator_stats.items():
+                    values = torch.cat(values).float()
+                    if key == "mean_clamped":
+                        metrics_for_direction[f"{key}_fraction"] = values.mean().item()
+                    else:
+                        metrics_for_direction[f"{key}_min"] = values.min().item()
+                        metrics_for_direction[f"{key}_median"] = values.median().item()
+                        metrics_for_direction[f"{key}_max"] = values.max().item()
+                epoch_losses.append(metrics_for_direction)
                 schedulers[d].step()
             completed_epochs = epoch
             timed_out = time.monotonic() >= deadline
@@ -442,9 +600,16 @@ def train_run(train_data, val_data, base, deadline, output_dir, validation_inter
             for d, suffix in enumerate(("01", "10")):
                 metrics[f"train/h1_{suffix}"] = epoch_losses[d]["h1"]
                 metrics[f"train/total_loss_{suffix}"] = epoch_losses[d]["total"]
-                if pressure_weight:
+                if pressure_enabled:
                     metrics[f"train/pressure_field_{suffix}"] = epoch_losses[d]["pressure_field"]
                     metrics[f"train/pressure_mean_{suffix}"] = epoch_losses[d]["pressure_mean"]
+                    metrics[f"train/weighted_pressure_field_{suffix}"] = field_weight * epoch_losses[d]["pressure_field"]
+                    metrics[f"train/weighted_pressure_mean_{suffix}"] = mean_weight * epoch_losses[d]["pressure_mean"]
+                    for key, value in epoch_losses[d].items():
+                        if key.startswith(("target_", "field_denominator_", "mean_denominator_", "mean_clamped_")):
+                            metrics[f"train/{key}_{suffix}"] = value
+                    for key, value in epoch_diagnostics[d].items():
+                        metrics[f"train/{key}_{suffix}"] = value
             if epoch % validation_interval == 0 or epoch == int(cfg.epochs) or timed_out:
                 result = evaluate_pair(models, normalizers, val_data[1:], device)
                 score = result["relative_log_supremum"]
@@ -504,9 +669,23 @@ def main():
     parser.add_argument("--plot-dir", help="Plot output directory (default: plots beside checkpoint)")
     parser.add_argument("--plot-samples", type=int,
                         help="Number of validation samples to plot per direction (default: 3)")
+    parser.add_argument("--compare-baseline", metavar="CHECKPOINT",
+                        help="Run a controlled comparison against the trusted z6a3nv6k checkpoint")
+    parser.add_argument("--field-weight", type=float, help="Controlled comparison pressure-field weight")
+    parser.add_argument("--mean-weight", type=float, help="Controlled comparison pressure-mean weight")
+    parser.add_argument("--pressure-normalization", choices=["stable", "legacy"], default="stable")
+    parser.add_argument("--gradient-interval", type=int, default=10,
+                        help="Gradient diagnostics every N epochs and epoch 1 (default: 10)")
     args = parser.parse_args()
     if args.hours <= 0 or not math.isfinite(args.hours) or args.validation_interval <= 0:
         parser.error("--hours and --validation-interval must be positive")
+    if args.gradient_interval <= 0:
+        parser.error("--gradient-interval must be positive")
+    if args.compare_baseline:
+        if args.evaluate or args.sweep_id or args.field_weight is None or args.mean_weight is None:
+            parser.error("--compare-baseline requires both weights and cannot be combined with --evaluate or --sweep-id")
+    elif args.field_weight is not None or args.mean_weight is not None or args.pressure_normalization != "stable":
+        parser.error("Comparison loss options require --compare-baseline")
     if args.plot_samples is not None and args.plot_samples <= 0:
         parser.error("--plot-samples must be positive")
     if (args.plots or args.plot_dir is not None or args.plot_samples is not None) and not args.evaluate:
@@ -526,6 +705,22 @@ def main():
     deadline = time.monotonic() + args.hours * 3600
     print(f"Loading all training samples from {train_dir} and validation samples from {validation_dir}", flush=True)
     train_data, val_data = load_fields(train_dir), load_fields(validation_dir)
+    if args.compare_baseline:
+        checkpoint = torch.load(args.compare_baseline, map_location="cpu", weights_only=False)
+        comparison, base = controlled_config(
+            checkpoint, train_data[0], val_data[0], args.field_weight, args.mean_weight,
+            args.pressure_normalization,
+        )
+        if args.validation_interval != checkpoint["config"]["validation_interval"]:
+            parser.error("--validation-interval must match the winner checkpoint")
+        output_dir = ROOT / "save_dir" / "permeability_comparison"
+        train_run(train_data, val_data, base, math.inf, output_dir, args.validation_interval,
+                  data_root, run_config=comparison,
+                  wandb_options={"entity": args.entity, "project": args.project,
+                                 "id": uuid.uuid4().hex, "resume": "never",
+                                 "group": "controlled-permeability-loss"},
+                  gradient_interval=args.gradient_interval)
+        return
     with (ROOT / "config" / "BPMF_config.yaml").open(encoding="utf-8") as file:
         base = yaml.safe_load(file)["default"]
     with (ROOT / "config" / "permeability_sweep.yaml").open(encoding="utf-8") as file:
@@ -540,7 +735,7 @@ def main():
         def run_one():
             try:
                 train_run(train_data, val_data, base, deadline, args.output_dir,
-                          args.validation_interval, data_root)
+                          args.validation_interval, data_root, gradient_interval=args.gradient_interval)
             except Exception as exc:
                 errors.append(exc)
                 raise

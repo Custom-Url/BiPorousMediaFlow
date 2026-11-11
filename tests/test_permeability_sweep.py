@@ -129,7 +129,7 @@ class PermeabilitySweepTests(unittest.TestCase):
         raw_x[:, :, 0, 0] = 0
         raw_y = torch.rand(2, 2, 8, 8)
         prediction = (raw_y * 1.1 + 0.01).requires_grad_()
-        field, mean = sweep.pressure_gradient_losses(raw_x, prediction, raw_y)
+        field, mean, _ = sweep.pressure_gradient_losses(raw_x, prediction, raw_y)
         expected_field, expected_mean = 0.0, 0.0
         for i in range(len(raw_x)):
             beta = torch.where(raw_x[i, 0] > 0, 10 ** raw_x[i, 0], raw_x[i, 0])
@@ -145,7 +145,7 @@ class PermeabilitySweepTests(unittest.TestCase):
         (field + mean).backward()
         self.assertTrue(torch.isfinite(prediction.grad).all())
         self.assertGreater(torch.linalg.vector_norm(prediction.grad).item(), 0)
-        zero_field, zero_mean = sweep.pressure_gradient_losses(raw_x, raw_y, raw_y)
+        zero_field, zero_mean, _ = sweep.pressure_gradient_losses(raw_x, raw_y, raw_y)
         self.assertEqual(zero_field.item(), 0)
         self.assertEqual(zero_mean.item(), 0)
 
@@ -154,12 +154,12 @@ class PermeabilitySweepTests(unittest.TestCase):
         target = torch.ones(1, 2, 8, 8)
         scale = torch.nn.Parameter(torch.tensor(2.0))
         optimizer = torch.optim.SGD([scale], lr=0.1)
-        initial = sum(sweep.pressure_gradient_losses(x, target * scale, target)).item()
+        initial = sum(sweep.pressure_gradient_losses(x, target * scale, target)[:2]).item()
         optimizer.zero_grad()
-        loss = sum(sweep.pressure_gradient_losses(x, target * scale, target))
+        loss = sum(sweep.pressure_gradient_losses(x, target * scale, target)[:2])
         loss.backward()
         optimizer.step()
-        final = sum(sweep.pressure_gradient_losses(x, target * scale, target)).item()
+        final = sum(sweep.pressure_gradient_losses(x, target * scale, target)[:2]).item()
         self.assertLess(final, initial)
 
     def test_pressure_loss_rejects_zero_and_nonfinite_reference(self):
@@ -170,6 +170,64 @@ class PermeabilitySweepTests(unittest.TestCase):
         x[0, 0, 0, 0] = float("nan")
         with self.assertRaisesRegex(ValueError, "Non-finite decoded beta"):
             sweep.pressure_gradient_losses(x, y, y)
+
+    def test_stable_loss_zero_and_near_zero_targets(self):
+        x = torch.ones(2, 1, 8, 8)
+        target = torch.zeros(2, 2, 8, 8)
+        target[1] = 1e-20
+        prediction = torch.full_like(target, 1e-5, requires_grad=True)
+        field, mean, stats = sweep.pressure_gradient_losses(x, prediction, target, "stable", 1.0)
+        self.assertTrue(torch.isfinite(field + mean))
+        (field + mean).backward()
+        self.assertTrue(torch.isfinite(prediction.grad).all())
+        self.assertTrue((stats["field_denominator"] >= 0.01).all())
+        self.assertTrue((stats["mean_denominator"] >= 0.01).all())
+        self.assertEqual(stats["mean_clamped"].sum().item(), 2)
+        field, mean, _ = sweep.pressure_gradient_losses(x, target, target, "stable", 0.0)
+        self.assertEqual((field + mean).item(), 0)
+
+    def test_pressure_gradient_analytic_constant_and_quadratic(self):
+        n = 16
+        coordinates = torch.arange(n, dtype=torch.float64) / n
+        xx, yy = torch.meshgrid(coordinates, coordinates, indexing="ij")
+        # beta=10, u0=x²+2y² and u1=3x²-y²; use interior points away from periodic edges.
+        velocity = torch.stack((xx.square() + 2 * yy.square(),
+                                3 * xx.square() - yy.square())).unsqueeze(0)
+        log_beta = torch.ones(1, 1, n, n, dtype=torch.float64)
+        pressure = sweep.pressure_gradient(log_beta, velocity)
+        expected = torch.stack((6 - 10 * velocity[0, 0], 4 - 10 * velocity[0, 1])).unsqueeze(0)
+        torch.testing.assert_close(pressure[:, :, 2:-2, 2:-2], expected[:, :, 2:-2, 2:-2],
+                                   atol=1e-10, rtol=1e-10)
+        constant = torch.ones_like(velocity)
+        torch.testing.assert_close(sweep.pressure_gradient(log_beta, constant), -10 * constant)
+        scale = torch.tensor(2.0, dtype=torch.float64, requires_grad=True)
+        field, mean, _ = sweep.pressure_gradient_losses(log_beta, scale * constant, constant, "stable", 10.0)
+        (field + mean).backward()
+        self.assertAlmostEqual(scale.grad.item(), 2.0, places=10)
+
+    def test_stable_mean_normalization_handles_cancellation(self):
+        x = torch.ones(1, 1, 16, 16)
+        grid = torch.arange(16) * (2 * torch.pi / 16)
+        target = torch.sin(grid)[None, None, :, None].expand(1, 2, 16, 16).clone()
+        field, mean, stats = sweep.pressure_gradient_losses(x, 2 * target, target, "stable", 1.0)
+        self.assertAlmostEqual(field.item(), 1, places=5)
+        self.assertEqual(stats["mean_clamped"].item(), 1)
+        self.assertGreaterEqual(stats["mean_denominator"].item(),
+                                0.1 * stats["target_field_rms"].item() - 1e-6)
+        self.assertTrue(torch.isfinite(mean))
+
+    def test_gradient_diagnostics_cosines_and_do_not_change_parameter_grads(self):
+        model = torch.nn.Linear(2, 1, bias=False)
+        h1 = model.weight.sum()
+        field = 2 * model.weight.sum()
+        mean = -3 * model.weight.sum()
+        stats = sweep.gradient_diagnostics({"h1": h1, "field": field, "mean": mean}, model)
+        self.assertAlmostEqual(stats["grad_norm_h1"], 2 ** 0.5, places=6)
+        self.assertAlmostEqual(stats["grad_cosine_h1_field"], 1.0, places=6)
+        self.assertAlmostEqual(stats["grad_cosine_h1_mean"], -1.0, places=6)
+        self.assertIsNone(model.weight.grad)
+        h1.backward()
+        torch.testing.assert_close(model.weight.grad, torch.ones_like(model.weight))
 
     def test_best_checkpoint_and_lr_decay(self):
         run = FakeRun()
@@ -248,8 +306,151 @@ class PermeabilitySweepTests(unittest.TestCase):
         run = FakeRun()
         del run.config["pressure_gradient_weight"]
         with mock.patch.object(sweep.wandb, "init", return_value=run):
-            with self.assertRaisesRegex(ValueError, "start a new sweep"):
+            with self.assertRaisesRegex(ValueError, "create a new sweep"):
                 sweep.train_run(None, None, {}, 0, "/tmp", 1, Path("/data"))
+
+    def test_zero_weight_exactly_matches_original_h1_training(self):
+        torch.manual_seed(31)
+        x = torch.rand(4, 1, 8, 8) + 1
+        y = torch.rand(4, 2, 8, 8) + 1
+        data = (["a", "b", "c", "d"], x, y)
+        val = {"relative_log_supremum": 0.2, "relative_log_supremum_median": 0.2,
+               "relative_log_supremum_p90": 0.3, "relative_frobenius": 0.4,
+               "log_metric_floor_entries": 0, "log_metric_relative_floor": 1e-12,
+               "relative_l2_01": 0.3, "relative_l2_10": 0.4, "samples": 4}
+        run = FakeRun()
+        run.config.update(epochs=1, pressure_field_weight=0.0, pressure_mean_weight=0.0,
+                          pressure_normalization="stable")
+        trained = []
+
+        def make_model():
+            model = torch.nn.Conv2d(1, 2, 1)
+            trained.append(model)
+            return model
+
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.object(sweep.wandb, "init", return_value=run), \
+                 mock.patch.object(sweep.wandb, "Artifact", FakeArtifact), \
+                 mock.patch.object(sweep, "make_model", side_effect=make_model), \
+                 mock.patch.object(sweep, "evaluate_pair", return_value=val), \
+                 mock.patch.object(sweep, "pressure_gradient_losses", side_effect=AssertionError("must bypass")), \
+                 mock.patch.object(sweep, "pressure_reference_scale", side_effect=AssertionError("must bypass")), \
+                 mock.patch.object(sweep, "gradient_diagnostics", side_effect=AssertionError("must bypass")):
+                sweep.train_run(data, data, {"data": {"encode_input": True, "encode_output": True}},
+                                time.monotonic() + 60, directory, 1, Path("/data"))
+        torch.manual_seed(0)
+        fields = (sweep.rotate_fields(x, y), (x, y))
+        normalizers, original, optimizers, schedulers, loaders = [], [], [], [], []
+        for raw_x, raw_y in fields:
+            normalizers.append((sweep.fitted_normalizer(raw_x, True), sweep.fitted_normalizer(raw_y, True)))
+            model = torch.nn.Conv2d(1, 2, 1)
+            optimizer = torch.optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-5)
+            original.append(model)
+            optimizers.append(optimizer)
+            schedulers.append(torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.5))
+            loaders.append(torch.utils.data.DataLoader(torch.utils.data.TensorDataset(raw_x, raw_y),
+                                                       batch_size=2, shuffle=True))
+        for d in range(2):
+            in_norm, out_norm = normalizers[d]
+            for raw_x, raw_y in loaders[d]:
+                optimizers[d].zero_grad(set_to_none=True)
+                h1 = sweep.H1Loss(d=2)(original[d](in_norm.transform(raw_x)), out_norm.transform(raw_y))
+                h1.backward()
+                optimizers[d].step()
+            schedulers[d].step()
+        for trained_model, original_model in zip(trained, original):
+            for actual, expected in zip(trained_model.parameters(), original_model.parameters()):
+                self.assertTrue(torch.equal(actual, expected))
+                self.assertTrue(torch.equal(actual.grad, expected.grad))
+
+    def test_controlled_comparison_checks_winner_split_and_settings(self):
+        cfg = dict(sweep.WINNER_SETTINGS, architecture="TFNO", n_modes=[32, 32],
+                   hidden_channels=32, rank=0.42, factorization="tucker",
+                   seed=0, directions=list(sweep.DIRECTIONS), encode_input=True,
+                   encode_output=True, train_ids_sha256=sweep.dataset_hash(["train"]),
+                   validation_ids_sha256=sweep.dataset_hash(["val"]))
+        checkpoint = {"format": "bpmf-permeability-pair-v1", "run_id": "z6a3nv6k", "config": cfg}
+        config, base = sweep.controlled_config(checkpoint, ["train"], ["val"], 0.001, 0.01, "stable")
+        self.assertEqual(config["learning_rate"], cfg["learning_rate"])
+        self.assertEqual(config["pressure_field_weight"], 0.001)
+        self.assertTrue(base["data"]["encode_input"])
+        with self.assertRaisesRegex(ValueError, "Dataset IDs"):
+            sweep.controlled_config(checkpoint, ["different"], ["val"], 0, 0, "stable")
+        cfg["learning_rate"] = 0.1
+        with self.assertRaisesRegex(ValueError, "learning_rate"):
+            sweep.controlled_config(checkpoint, ["train"], ["val"], 0, 0, "stable")
+
+    def test_comparison_cli_calls_separate_run_with_winner_configuration(self):
+        x = torch.ones(1, 1, 8, 8)
+        y = torch.ones(1, 2, 8, 8)
+        train, val = (["train"], x, y), (["val"], x, y)
+        cfg = dict(sweep.WINNER_SETTINGS, architecture="TFNO", n_modes=[32, 32],
+                   hidden_channels=32, rank=0.42, factorization="tucker",
+                   seed=0, directions=list(sweep.DIRECTIONS), encode_input=True,
+                   encode_output=True, train_ids_sha256=sweep.dataset_hash(train[0]),
+                   validation_ids_sha256=sweep.dataset_hash(val[0]), validation_interval=10)
+        checkpoint = {"format": "bpmf-permeability-pair-v1", "run_id": "z6a3nv6k", "config": cfg}
+        argv = ["permeability_sweep.py", "--data-root", "/data", "--entity", "test",
+                "--compare-baseline", "/winner.pt", "--field-weight", "0.001", "--mean-weight", "0.01"]
+        with mock.patch.object(sys, "argv", argv), \
+             mock.patch.object(sweep, "load_fields", side_effect=[train, val]), \
+             mock.patch.object(sweep.torch, "load", return_value=checkpoint), \
+             mock.patch.object(sweep.uuid, "uuid4", return_value=mock.Mock(hex="new-run")), \
+             mock.patch.object(sweep, "train_run") as train_run:
+            sweep.main()
+        args, kwargs = train_run.call_args
+        self.assertEqual(args[0], train)
+        self.assertEqual(args[1], val)
+        self.assertEqual(args[4], sweep.ROOT / "save_dir" / "permeability_comparison")
+        self.assertEqual(kwargs["run_config"]["pressure_field_weight"], 0.001)
+        self.assertEqual(kwargs["run_config"]["pressure_mean_weight"], 0.01)
+        self.assertEqual(kwargs["wandb_options"]["id"], "new-run")
+        self.assertEqual(kwargs["wandb_options"]["resume"], "never")
+
+    def test_existing_checkpoint_is_not_overwritten(self):
+        run = FakeRun()
+        x = torch.ones(2, 1, 8, 8)
+        y = torch.ones(2, 2, 8, 8)
+        data = (["a", "b"], x, y)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / run.id / "best_pair.pt"
+            path.parent.mkdir()
+            path.write_bytes(b"existing")
+            with mock.patch.object(sweep.wandb, "init", return_value=run), \
+                 mock.patch.object(sweep, "make_model", side_effect=lambda: torch.nn.Conv2d(1, 2, 1)):
+                with self.assertRaisesRegex(FileExistsError, "Refusing to overwrite"):
+                    sweep.train_run(data, data, {"data": {"encode_input": True, "encode_output": True}},
+                                    time.monotonic() + 60, directory, 1, Path("/data"))
+            self.assertEqual(path.read_bytes(), b"existing")
+
+    def test_stable_training_logs_components_and_gradient_diagnostics(self):
+        run = FakeRun()
+        run.config.update(epochs=1, pressure_field_weight=0.001, pressure_mean_weight=0.01,
+                          pressure_normalization="stable")
+        x = torch.rand(2, 1, 8, 8) + 1
+        y = torch.rand(2, 2, 8, 8) + 1
+        data = (["a", "b"], x, y)
+        validation = {"relative_log_supremum": 0.2, "relative_log_supremum_median": 0.2,
+                      "relative_log_supremum_p90": 0.3, "relative_frobenius": 0.4,
+                      "log_metric_floor_entries": 0, "log_metric_relative_floor": 1e-12,
+                      "relative_l2_01": 0.3, "relative_l2_10": 0.4, "samples": 2}
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.object(sweep.wandb, "init", return_value=run), \
+                 mock.patch.object(sweep.wandb, "Artifact", FakeArtifact), \
+                 mock.patch.object(sweep, "make_model", side_effect=lambda: torch.nn.Conv2d(1, 2, 1)), \
+                 mock.patch.object(sweep, "evaluate_pair", return_value=validation):
+                sweep.train_run(data, data, {"data": {"encode_input": True, "encode_output": True}},
+                                time.monotonic() + 60, directory, 1, Path("/data"))
+        for suffix in ("01", "10"):
+            history = run.history[0]
+            self.assertAlmostEqual(history[f"train/weighted_pressure_field_{suffix}"],
+                                   0.001 * history[f"train/pressure_field_{suffix}"])
+            self.assertAlmostEqual(history[f"train/weighted_pressure_mean_{suffix}"],
+                                   0.01 * history[f"train/pressure_mean_{suffix}"])
+            for key in ("grad_norm_h1", "grad_norm_pressure_field", "grad_norm_pressure_mean",
+                        "grad_norm_weighted_pressure_field", "grad_cosine_h1_pressure_mean",
+                        "mean_clamped_fraction", "target_field_rms_min", "mean_denominator_median"):
+                self.assertIn(f"train/{key}_{suffix}", history)
 
     def test_training_physics_uses_raw_inputs_and_decoded_outputs(self):
         torch.manual_seed(9)
@@ -282,9 +483,9 @@ class PermeabilitySweepTests(unittest.TestCase):
                     models.append(model)
                     return model
 
-                def record_loss(raw_x, pred, raw_y):
+                def record_loss(raw_x, pred, raw_y, *args):
                     observed.append((raw_x.detach().clone(), pred.detach().clone(), raw_y.detach().clone()))
-                    return pressure_loss(raw_x, pred, raw_y)
+                    return pressure_loss(raw_x, pred, raw_y, *args)
 
                 with mock.patch.object(sweep.wandb, "init", return_value=run), \
                      mock.patch.object(sweep.wandb, "Artifact", FakeArtifact), \

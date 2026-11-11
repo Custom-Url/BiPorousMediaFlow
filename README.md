@@ -100,7 +100,7 @@ multiple agents.
 The base model follows the current TFNO training configuration (32 modes,
 32 hidden channels, Tucker rank 0.42), using the input and output encoding
 flags from `config/BPMF_config.yaml`. The sweep varies learning rate, weight
-decay, StepLR decay and pressure-gradient loss weight, with 100 epochs per run. Edit
+decay, StepLR decay and separate pressure-gradient loss weights, with 100 epochs per run. Edit
 `config/permeability_sweep.yaml` to change the search space. Each run validates
 both models together every 10 epochs and at the final epoch; change the
 interval with `--validation-interval`. Validation uses normalizers fitted on
@@ -122,28 +122,75 @@ K is reconstructed using both directions and a unit-square domain.
 Non-finite or singular permeability results fail the run rather than being
 silently omitted.
 
-Training minimizes `H1 + pressure_gradient_weight * (field_error + mean_error)`
-independently for each direction. H1 is computed on the normalized outputs as
-before. The two additional terms compare predicted and reference physical
-pressure gradients `laplacian(u) - beta*u`: `field_error` is the relative L2
-error over both components and the grid, and `mean_error` is the relative L2
-error of the two-component spatial mean. Both are summed per sample in a batch
-and use the same beta decoding, unit-square spacing, and boundary treatment as
-permeability reconstruction. Predictions are decoded with the training output
-normalizer before computing the physics terms. Zero target gradient norms and
-non-finite values fail explicitly.
+Training minimizes `H1 + field_weight * field_error + mean_weight * mean_error`
+independently for each direction. H1 uses normalized outputs as before. The
+auxiliary losses use decoded physical velocities, raw log-beta inputs and
+`g = laplacian(u) - beta*u`, with exactly the same unit-square spacing and
+boundary flags as permeability evaluation. In neuraloperator 2.0 those flags
+select periodic finite differences; confirm the installed version's behavior.
+No matrix inverse is used in the loss.
 
-The sweep tests weights `0`, `0.01`, `0.1`, `1`, and `5`; `0` reproduces the
-H1-only baseline and does not compute the auxiliary losses. W&B logs
-`train/pressure_field_01`, `train/pressure_mean_01`, and
-`train/total_loss_01` (and corresponding `_10` metrics), as well as the
-unweighted `train/h1_*` values and configured weight. The physics loss is a
-proxy, not a direct K loss; checkpoint selection still minimizes the
-validation K metric. Its effect on real data is not guaranteed.
+The default `stable` normalization uses a training-set-only scale `s`: the
+median over training samples of `||g_true||₂ / sqrt(H*W)`, separately per
+direction. With `r = ||g_true||₂ / sqrt(H*W)`, `m = ||mean(g_true)||₂`, and
+`f = max(1e-12, 0.01*s)`, the denominators are `max(r, f)` for the field RMS
+error and `max(m, 0.1*r, f)` for the mean-vector error. These floors limit
+amplification caused by tiny references or cancellation; the constants are
+starting choices, not validated optimal values. Field norms combine both
+components and grid points, while the mean norm combines both components.
+Each term sums over samples in a batch. H1's default reduction in
+neuraloperator 2.0 sums per-sample **and per-component** relative H1 errors.
+Zero targets therefore have finite auxiliary loss, but do not imply that K is
+well-defined. Non-finite gradients or losses fail explicitly.
 
-Start a **new sweep** without `--sweep-id` after this change: existing W&B
-sweeps do not contain the new weight parameter and cannot test this objective.
-Previously saved paired checkpoints can still be evaluated and plotted.
+The new sweep tries separate weights `0`, `0.001`, and `0.01`. Setting both to
+zero bypasses the physics calculation completely and reproduces the original
+H1-only path. `legacy` normalization retains the earlier unfloored relative
+field and mean norms and rejects zero reference norms. Existing W&B sweeps
+using `pressure_gradient_weight` automatically retain `legacy` behavior with
+that weight applied to both terms; start a new sweep to use the new parameters.
+
+W&B records unweighted and weighted terms, total loss, per-direction training
+reference scales, denominator minimum/median/maximum and fraction of mean
+denominators clamped. Every `--gradient-interval` epochs (default 10) and at
+epoch 1, it records each enabled term's raw and weighted gradient norms and
+pairwise cosine similarities over all trainable parameters for the first batch
+of each direction. Cosines are omitted when a norm is zero, with a corresponding
+`grad_cosine_defined_*` flag. Gradient diagnostics are not computed when both
+weights are zero. Epoch losses are divided by the number of samples; diagnostic
+gradient norms are for that one batch's summed losses. These costs can increase
+training time and memory. The physics loss is a proxy, not a direct K loss;
+whether it improves permeability must be measured.
+
+For a controlled comparison with the original winner `z6a3nv6k`, use its
+**trusted** `best_pair.pt` as the reference. The command checks the recorded
+optimizer/architecture settings, seed, encoding flags and both sample-ID hashes,
+then starts one new W&B run with the winner's exact recorded optimizer settings,
+100 epochs, seed 0 and matching validation interval. It writes to a new run-ID
+directory under `save_dir/permeability_comparison/` and refuses to overwrite an
+existing `best_pair.pt`. Run the H1 baseline first:
+
+```bash
+env -u PYTHONPATH -u PYTHONHOME /mnt/data/dg765/conda_envs/bpmf/bin/python \
+  code/permeability_sweep.py --data-root /mnt/data2/yc2634/ML/StokesBrinkman \
+  --entity dylangray --compare-baseline save_dir/permeability_sweep/z6a3nv6k/best_pair.pt \
+  --field-weight 0 --mean-weight 0
+```
+
+Once that run finishes, repeat the same command with `--field-weight 0.001
+--mean-weight 0.001`, then with `--field-weight 0.01 --mean-weight 0.01`.
+To reproduce the earlier pressure-loss formula instead, add
+`--pressure-normalization legacy` and set equal weights. Use the same software,
+hardware and dataset contents as the winner when possible: ID hashes alone do
+not verify file contents, and matching seeds does not guarantee bitwise
+reproducibility across environments. These are separate W&B runs, not a W&B
+sweep. Validation metrics and best-checkpoint selection are unchanged.
+
+The beta convention shared with evaluation represents both zero beta and
+beta=1 as encoded zero, and does not correctly decode positive beta below 1.
+Verify that material values avoid those ambiguous cases before interpreting
+the physics loss or permeability metric; this change does not alter that
+existing evaluation convention.
 
 Each run saves its best *pair* of model weights and their fitted normalizers
 to `save_dir/permeability_sweep/<run-id>/best_pair.pt` and uploads it as a
