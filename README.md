@@ -98,9 +98,9 @@ This timer is local to the process; it is not a W&B sweep-wide limit across
 multiple agents.
 
 The base model follows the current TFNO training configuration (32 modes,
-32 hidden channels, Tucker rank 0.42), with H1 training loss and the input and
-output encoding flags from `config/BPMF_config.yaml`. The sweep varies learning
-rate, weight decay and StepLR decay, with 100 epochs per run. Edit
+32 hidden channels, Tucker rank 0.42), using the input and output encoding
+flags from `config/BPMF_config.yaml`. The sweep varies learning rate, weight
+decay, StepLR decay and pressure-gradient loss weight, with 100 epochs per run. Edit
 `config/permeability_sweep.yaml` to change the search space. Each run validates
 both models together every 10 epochs and at the final epoch; change the
 interval with `--validation-interval`. Validation uses normalizers fitted on
@@ -120,8 +120,30 @@ The W&B history also includes median and 90th-percentile log-supremum errors,
 the relative Frobenius error, and per-direction velocity relative L2 errors.
 K is reconstructed using both directions and a unit-square domain.
 Non-finite or singular permeability results fail the run rather than being
-silently omitted. Training still optimizes H1 loss; permeability is used for
-model selection, not as a training loss.
+silently omitted.
+
+Training minimizes `H1 + pressure_gradient_weight * (field_error + mean_error)`
+independently for each direction. H1 is computed on the normalized outputs as
+before. The two additional terms compare predicted and reference physical
+pressure gradients `laplacian(u) - beta*u`: `field_error` is the relative L2
+error over both components and the grid, and `mean_error` is the relative L2
+error of the two-component spatial mean. Both are summed per sample in a batch
+and use the same beta decoding, unit-square spacing, and boundary treatment as
+permeability reconstruction. Predictions are decoded with the training output
+normalizer before computing the physics terms. Zero target gradient norms and
+non-finite values fail explicitly.
+
+The sweep tests weights `0`, `0.01`, `0.1`, `1`, and `5`; `0` reproduces the
+H1-only baseline and does not compute the auxiliary losses. W&B logs
+`train/pressure_field_01`, `train/pressure_mean_01`, and
+`train/total_loss_01` (and corresponding `_10` metrics), as well as the
+unweighted `train/h1_*` values and configured weight. The physics loss is a
+proxy, not a direct K loss; checkpoint selection still minimizes the
+validation K metric. Its effect on real data is not guaranteed.
+
+Start a **new sweep** without `--sweep-id` after this change: existing W&B
+sweeps do not contain the new weight parameter and cannot test this objective.
+Previously saved paired checkpoints can still be evaluated and plotted.
 
 Each run saves its best *pair* of model weights and their fitted normalizers
 to `save_dir/permeability_sweep/<run-id>/best_pair.pt` and uploads it as a
@@ -158,11 +180,11 @@ contents. The validation set has been used for model selection, so report
 final performance on a further independent test set.
 
 For ARIA, W&B receives the objective, per-direction relative L2 errors, training
-H1 losses, learning rate, best epoch, dataset counts and ID hashes, encoding
+H1 and pressure-gradient losses, their weight, learning rate, best epoch, dataset counts and ID hashes, encoding
 settings, hyperparameters, and the paired checkpoint artifact. Open the sweep in
 W&B and ask ARIA to compare runs by `permeability/best_relative_log_supremum`,
 including its median/p90, the Frobenius diagnostic, the validation L2 metrics,
-and learning-rate/weight-decay settings.
+and the pressure-gradient weight and learning-rate/weight-decay settings.
 
 ## License
 See [LICENSE.txt](LICENSE.txt) for license information.

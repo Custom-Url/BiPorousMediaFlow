@@ -11,6 +11,8 @@ parameters:
     distribution: log_uniform_values
     min: 0.000001
     max: 0.0001
+  pressure_gradient_weight:
+    values: [0.0, 0.01, 0.1, 1.0, 5.0]
   epochs:
     value: 100
   batch_size:

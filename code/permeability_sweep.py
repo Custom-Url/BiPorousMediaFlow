@@ -18,7 +18,7 @@ from neuralop.models.fno import FNO, TFNO
 from torch.utils.data import DataLoader, TensorDataset
 
 from utils.brinkman_amitex import load_betamap, load_velomap
-from utils.helpers import recon_pressure_grad_2d_fd
+from utils.helpers import compute_laplacian_fd_2d, recon_pressure_grad_2d_fd
 
 ROOT = Path(__file__).resolve().parents[1]
 DIRECTIONS = ("[0,1]", "[1,0]")
@@ -93,6 +93,36 @@ def permeability_matrix(inputs, velocities, device):
     if not torch.isfinite(matrix).all():
         raise ValueError("Non-finite reconstructed pressure gradient")
     return torch.linalg.solve(matrix, torch.eye(2, device=device))
+
+
+def pressure_gradient_losses(log_beta, prediction, target):
+    """Sum per-sample relative errors in pressure-gradient fields and their means."""
+    beta = torch.where(log_beta > 0, torch.pow(10.0, log_beta), log_beta)
+    if not torch.isfinite(beta).all():
+        raise ValueError("Non-finite decoded beta in pressure-gradient loss")
+    height, width = prediction.shape[-2:]
+
+    def gradient(velocity):
+        return (compute_laplacian_fd_2d(
+            velocity, dx=1 / height, dy=1 / width, fix_x_bnd=True, fix_y_bnd=True
+        ) - beta * velocity)
+
+    predicted_gradient = gradient(prediction)
+    with torch.no_grad():
+        target_gradient = gradient(target)
+    if not torch.isfinite(predicted_gradient).all() or not torch.isfinite(target_gradient).all():
+        raise ValueError("Non-finite pressure gradient in training loss")
+    pred_mean = predicted_gradient.mean(dim=(-2, -1))
+    target_mean = target_gradient.mean(dim=(-2, -1))
+    field_norm = torch.linalg.vector_norm(target_gradient.flatten(start_dim=1), dim=1)
+    mean_norm = torch.linalg.vector_norm(target_mean, dim=1)
+    if (field_norm <= 0).any() or (mean_norm <= 0).any():
+        raise ValueError("Zero target pressure gradient or mean in training loss")
+    field_error = torch.linalg.vector_norm(
+        (predicted_gradient - target_gradient).flatten(start_dim=1), dim=1
+    ) / field_norm
+    mean_error = torch.linalg.vector_norm(pred_mean - target_mean, dim=1) / mean_norm
+    return field_error.sum(), mean_error.sum()
 
 
 LOG_METRIC_RELATIVE_FLOOR = 1e-12
@@ -314,6 +344,14 @@ def dataset_hash(identifiers):
 def train_run(train_data, val_data, base, deadline, output_dir, validation_interval, data_root):
     with wandb.init() as run:
         cfg = run.config
+        if "pressure_gradient_weight" not in cfg:
+            raise ValueError(
+                "This sweep has no pressure_gradient_weight parameter; start a new sweep "
+                "without --sweep-id to use the pressure-gradient loss"
+            )
+        pressure_weight = float(cfg.pressure_gradient_weight)
+        if not math.isfinite(pressure_weight) or pressure_weight < 0:
+            raise ValueError("pressure_gradient_weight must be finite and non-negative")
         torch.manual_seed(0)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         x1, y1 = train_data[1:]
@@ -348,7 +386,12 @@ def train_run(train_data, val_data, base, deadline, output_dir, validation_inter
                 "/ max(abs(log(abs(K_true)))); exact/tiny entries are floored "
                 "at max(abs(K_pred),abs(K_true))*1e-12"
             ),
-            "training_loss": "H1", "seed": 0, "validation_interval": validation_interval,
+            "training_loss": "H1 + pressure_gradient_weight * (relative_field + relative_mean)",
+            "pressure_gradient_loss_definition": (
+                "sum of per-sample relative L2 errors of physical pressure-gradient fields "
+                "and their spatial means, with finite differences on a unit square"
+            ),
+            "seed": 0, "validation_interval": validation_interval,
             "train_directory": str(data_root / "R64"),
             "validation_directory": str(data_root / "R64_unseen"),
             "domain_lengths": [1, 1],
@@ -362,28 +405,46 @@ def train_run(train_data, val_data, base, deadline, output_dir, validation_inter
             epoch_losses = []
             for d in range(2):
                 models[d].train()
-                total, samples = 0.0, 0
+                totals, samples = {"h1": 0.0, "pressure_field": 0.0,
+                                   "pressure_mean": 0.0, "total": 0.0}, 0
                 in_norm, out_norm = normalizers[d]
                 for x, y in loaders[d]:
                     x, y = x.to(device), y.to(device)
+                    raw_x, raw_y = x, y
                     if in_norm is not None:
                         x = in_norm.transform(x)
                     if out_norm is not None:
                         y = out_norm.transform(y)
                     optimizers[d].zero_grad(set_to_none=True)
-                    loss = loss_fn(models[d](x), y)
+                    prediction = models[d](x)
+                    h1 = loss_fn(prediction, y)
+                    if pressure_weight:
+                        physical_prediction = (out_norm.inverse_transform(prediction)
+                                               if out_norm is not None else prediction)
+                        field, mean = pressure_gradient_losses(raw_x, physical_prediction, raw_y)
+                        loss = h1 + pressure_weight * (field + mean)
+                        totals["pressure_field"] += field.item()
+                        totals["pressure_mean"] += mean.item()
+                    else:
+                        loss = h1
                     if not torch.isfinite(loss):
                         raise ValueError(f"Non-finite training loss at epoch {epoch}, direction {DIRECTIONS[d]}")
                     loss.backward()
                     optimizers[d].step()
-                    total += loss.item()
+                    totals["h1"] += h1.item()
+                    totals["total"] += loss.item()
                     samples += len(x)
-                epoch_losses.append(total / samples)
+                epoch_losses.append({key: value / samples for key, value in totals.items()})
                 schedulers[d].step()
             completed_epochs = epoch
             timed_out = time.monotonic() >= deadline
-            metrics = {"epoch": epoch, "train/h1_01": epoch_losses[0], "train/h1_10": epoch_losses[1],
-                       "train/learning_rate": optimizers[0].param_groups[0]["lr"]}
+            metrics = {"epoch": epoch, "train/learning_rate": optimizers[0].param_groups[0]["lr"]}
+            for d, suffix in enumerate(("01", "10")):
+                metrics[f"train/h1_{suffix}"] = epoch_losses[d]["h1"]
+                metrics[f"train/total_loss_{suffix}"] = epoch_losses[d]["total"]
+                if pressure_weight:
+                    metrics[f"train/pressure_field_{suffix}"] = epoch_losses[d]["pressure_field"]
+                    metrics[f"train/pressure_mean_{suffix}"] = epoch_losses[d]["pressure_mean"]
             if epoch % validation_interval == 0 or epoch == int(cfg.epochs) or timed_out:
                 result = evaluate_pair(models, normalizers, val_data[1:], device)
                 score = result["relative_log_supremum"]
