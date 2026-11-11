@@ -111,6 +111,11 @@ validation mean of the per-sample relative log-supremum error
 `max(abs(log(abs(K_pred))-log(abs(K_true)))) / max(abs(log(abs(K_true))))`
 seen in a run. This matches the target paper's definition using entrywise
 permeability magnitudes and therefore does **not** measure sign errors in K.
+Since `log(0)` is undefined, entries at or below `1e-12` times the largest
+absolute entry of either tensor are floored to that relative threshold for
+this metric only. Matching structural zeros produce zero error; zero/nonzero
+mismatches are penalized. W&B logs how many entries hit the floor so ARIA can
+identify when this convention materially affects a run.
 The W&B history also includes median and 90th-percentile log-supremum errors,
 the relative Frobenius error, and per-direction velocity relative L2 errors.
 K is reconstructed using both directions and a unit-square domain.

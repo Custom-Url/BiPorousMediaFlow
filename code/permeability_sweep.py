@@ -95,13 +95,25 @@ def permeability_matrix(inputs, velocities, device):
     return torch.linalg.solve(matrix, torch.eye(2, device=device))
 
 
+LOG_METRIC_RELATIVE_FLOOR = 1e-12
+
+
 def relative_log_supremum(predicted, truth):
-    """Relative supremum error on log magnitudes, as in the target paper."""
-    predicted, truth = predicted.abs(), truth.abs()
+    """Relative log-supremum error with a relative floor for exact-zero entries.
+
+    The paper's expression is undefined at K=0. This preserves the expression
+    for nonzero entries and treats matching structural zeros equally; a zero vs
+    nonzero mismatch remains penalized.
+    """
+    predicted, truth = predicted.abs().to(torch.float64), truth.abs().to(torch.float64)
     if not torch.isfinite(predicted).all() or not torch.isfinite(truth).all():
         raise ValueError("Permeability matrices contain non-finite entries")
-    if (predicted <= 0).any() or (truth <= 0).any():
-        raise ValueError("Log-supremum metric requires nonzero permeability entries")
+    scale = torch.maximum(predicted.amax(), truth.amax())
+    if scale <= 0:
+        raise ValueError("Relative log-supremum metric requires a nonzero permeability scale")
+    floor = scale * LOG_METRIC_RELATIVE_FLOOR
+    predicted = predicted.clamp_min(floor)
+    truth = truth.clamp_min(floor)
     log_truth = torch.log(truth)
     denominator = log_truth.abs().amax()
     if denominator <= torch.finfo(log_truth.dtype).eps:
@@ -109,11 +121,20 @@ def relative_log_supremum(predicted, truth):
     return (torch.log(predicted) - log_truth).abs().amax() / denominator
 
 
+def count_log_metric_floor_entries(predicted, truth):
+    scale = torch.maximum(predicted.abs().amax(), truth.abs().amax())
+    if scale <= 0:
+        return int(predicted.numel())
+    floor = scale * LOG_METRIC_RELATIVE_FLOOR
+    return int(((predicted.abs() <= floor) | (truth.abs() <= floor)).sum().item())
+
+
 def evaluate_pair(models, normalizers, fields, device):
     """Evaluate permeability errors, including the paper's relative log-supremum J."""
     x1, y1 = fields
     x0, y0 = rotate_fields(x1, y1)
     log_sup_errors, frobenius_errors, l2_errors = [], [], [[], []]
+    log_floor_entries = 0
     for model in models:
         model.eval()
     with torch.no_grad():
@@ -144,6 +165,7 @@ def evaluate_pair(models, normalizers, fields, device):
             denominator = torch.linalg.matrix_norm(true_k.abs())
             frobenius_error = torch.linalg.matrix_norm(pred_k.abs() - true_k.abs()) / denominator
             log_sup_error = relative_log_supremum(pred_k, true_k)
+            log_floor_entries += count_log_metric_floor_entries(pred_k, true_k)
             if not torch.isfinite(frobenius_error):
                 raise ValueError(f"Non-finite permeability error for validation sample {i}")
             frobenius_errors.append(frobenius_error.item())
@@ -158,6 +180,8 @@ def evaluate_pair(models, normalizers, fields, device):
         "relative_log_supremum_median": log_quantiles[0].item(),
         "relative_log_supremum_p90": log_quantiles[1].item(),
         "relative_frobenius": sum(frobenius_errors) / len(frobenius_errors),
+        "log_metric_floor_entries": log_floor_entries,
+        "log_metric_relative_floor": LOG_METRIC_RELATIVE_FLOOR,
         "relative_l2_01": sum(l2_errors[0]) / len(log_sup_errors),
         "relative_l2_10": sum(l2_errors[1]) / len(log_sup_errors),
         "samples": len(log_sup_errors),
@@ -241,7 +265,8 @@ def train_run(train_data, val_data, base, deadline, output_dir, validation_inter
             "encode_output": base["data"]["encode_output"],
             "validation_metric_definition": (
                 "mean per-sample max(abs(log(abs(K_pred))-log(abs(K_true)))) "
-                "/ max(abs(log(abs(K_true))))"
+                "/ max(abs(log(abs(K_true)))); exact/tiny entries are floored "
+                "at max(abs(K_pred),abs(K_true))*1e-12"
             ),
             "training_loss": "H1", "seed": 0, "validation_interval": validation_interval,
             "train_directory": str(data_root / "R64"),
@@ -287,6 +312,8 @@ def train_run(train_data, val_data, base, deadline, output_dir, validation_inter
                     "permeability/relative_log_supremum_median": result["relative_log_supremum_median"],
                     "permeability/relative_log_supremum_p90": result["relative_log_supremum_p90"],
                     "permeability/relative_frobenius": result["relative_frobenius"],
+                    "permeability/log_metric_floor_entries": result["log_metric_floor_entries"],
+                    "permeability/log_metric_relative_floor": result["log_metric_relative_floor"],
                     "validation/relative_l2_01": result["relative_l2_01"],
                     "validation/relative_l2_10": result["relative_l2_10"],
                     "validation/samples": result["samples"],

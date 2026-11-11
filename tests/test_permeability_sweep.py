@@ -108,8 +108,18 @@ class PermeabilitySweepTests(unittest.TestCase):
         expected = torch.log(torch.tensor(2.0)) / torch.log(torch.tensor(4.0))
         actual = sweep.relative_log_supremum(prediction, truth)
         self.assertAlmostEqual(actual.item(), expected.item(), places=6)
-        with self.assertRaisesRegex(ValueError, "nonzero"):
-            sweep.relative_log_supremum(torch.zeros_like(truth), truth)
+
+    def test_exact_zero_entries_are_handled_with_relative_floor(self):
+        truth = torch.tensor([[2.0, 0.0], [0.25, 4.0]])
+        prediction = truth.clone()
+        self.assertAlmostEqual(
+            sweep.relative_log_supremum(prediction, truth).item(), 0.0, places=7
+        )
+        prediction[0, 1] = 0.5
+        error = sweep.relative_log_supremum(prediction, truth)
+        self.assertTrue(torch.isfinite(error))
+        self.assertGreater(error.item(), 0.0)
+        self.assertEqual(sweep.count_log_metric_floor_entries(prediction, truth), 1)
 
     def test_best_checkpoint_and_lr_decay(self):
         run = FakeRun()
@@ -119,9 +129,11 @@ class PermeabilitySweepTests(unittest.TestCase):
         results = [
             {"relative_log_supremum": 0.2, "relative_log_supremum_median": 0.2,
              "relative_log_supremum_p90": 0.3, "relative_frobenius": 0.4,
+             "log_metric_floor_entries": 0, "log_metric_relative_floor": 1e-12,
              "relative_l2_01": 0.3, "relative_l2_10": 0.4, "samples": 4},
             {"relative_log_supremum": 0.3, "relative_log_supremum_median": 0.3,
              "relative_log_supremum_p90": 0.4, "relative_frobenius": 0.5,
+             "log_metric_floor_entries": 0, "log_metric_relative_floor": 1e-12,
              "relative_l2_01": 0.3, "relative_l2_10": 0.4, "samples": 4},
         ]
         with tempfile.TemporaryDirectory() as directory:
