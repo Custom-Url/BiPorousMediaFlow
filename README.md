@@ -133,6 +133,24 @@ the validation score, use the same dataset and environment:
 python code/permeability_sweep.py --data-root /path/to/data --evaluate save_dir/permeability_sweep/RUN_ID/best_pair.pt
 ```
 
+Add `--plots` to save a `K_comparison.png` scatter plot for all validation
+samples and velocity-field comparisons for the first three samples in both
+loading directions. For example:
+
+```bash
+python code/permeability_sweep.py --data-root /path/to/data \
+  --evaluate save_dir/permeability_sweep/RUN_ID/best_pair.pt --plots
+```
+
+The figures are written to `plots/` beside the checkpoint. Use `--plot-dir`
+to choose another output directory and `--plot-samples N` to change the number
+of field samples shown. The plots and scores use the checkpoint's saved
+normalizers and the same `R64_unseen` validation IDs used for selection.
+K plots show magnitudes, not signs; exact-zero pairs cannot be shown on a log
+axis and are counted in each panel. Those values still contribute to the
+reported error metric using its documented floor. Field comparison colors use
+the ground-truth range for both ground truth and prediction.
+
 Load only trusted checkpoints: PyTorch checkpoint loading can execute code.
 The paired checkpoint format is separate from the legacy `evaluate.py`
 single-model format. Sample-ID hashes check dataset membership, not file

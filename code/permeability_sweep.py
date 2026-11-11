@@ -129,7 +129,7 @@ def count_log_metric_floor_entries(predicted, truth):
     return int(((predicted.abs() <= floor) | (truth.abs() <= floor)).sum().item())
 
 
-def evaluate_pair(models, normalizers, fields, device):
+def evaluate_pair(models, normalizers, fields, device, sample_callback=None):
     """Evaluate permeability errors, including the paper's relative log-supremum J."""
     x1, y1 = fields
     x0, y0 = rotate_fields(x1, y1)
@@ -170,6 +170,8 @@ def evaluate_pair(models, normalizers, fields, device):
                 raise ValueError(f"Non-finite permeability error for validation sample {i}")
             frobenius_errors.append(frobenius_error.item())
             log_sup_errors.append(log_sup_error.item())
+            if sample_callback is not None:
+                sample_callback(i, raw_x, raw_y, predictions, true_k, pred_k)
     if not log_sup_errors:
         raise ValueError("Validation data is empty")
     log_quantiles = torch.tensor(log_sup_errors, dtype=torch.float64).quantile(
@@ -206,12 +208,87 @@ def restore_normalizer(metadata, device):
     ).to(device)
 
 
-def evaluate_checkpoint(path, validation_dir):
+def plot_validation(models, normalizers, fields, ids, device, output_dir, sample_count):
+    """Save field comparisons and permeability plots from the same validation pass."""
+    import matplotlib.pyplot as plt
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    true_matrices, predicted_matrices = [], []
+
+    def save_sample(index, raw_x, raw_y, predictions, true_k, pred_k):
+        true_matrices.append(true_k.detach().cpu())
+        predicted_matrices.append(pred_k.detach().cpu())
+        if index >= sample_count:
+            return
+        for direction in range(2):
+            x = raw_x[direction].detach().cpu()
+            y = raw_y[direction].detach().cpu()
+            prediction = predictions[direction].detach().cpu()
+            fig, axes = plt.subplots(1, 5, figsize=(16, 3.5), constrained_layout=True)
+            images = [x[0], y[0], prediction[0], y[1], prediction[1]]
+            titles = ["log10(beta)", "u1 ground truth", "u1 predicted",
+                      "u2 ground truth", "u2 predicted"]
+            for j, (ax, image, title) in enumerate(zip(axes, images, titles)):
+                kwargs = {"cmap": "gray"} if j == 0 else {}
+                if j in (1, 2):
+                    kwargs.update(vmin=y[0].min().item(), vmax=y[0].max().item())
+                elif j in (3, 4):
+                    kwargs.update(vmin=y[1].min().item(), vmax=y[1].max().item())
+                im = ax.imshow(image.numpy(), **kwargs)
+                ax.set_title(title)
+                ax.set_xticks([])
+                ax.set_yticks([])
+                fig.colorbar(im, ax=ax, orientation="horizontal")
+            fig.suptitle(f"Validation sample {ids[index]}, loading {DIRECTIONS[direction]}")
+            path = output_dir / f"sample_{index:03d}_{'01' if direction == 0 else '10'}.png"
+            fig.savefig(path, dpi=150)
+            plt.close(fig)
+
+    result = evaluate_pair(models, normalizers, fields, device, sample_callback=save_sample)
+    truth = torch.stack(true_matrices).abs().numpy()
+    prediction = torch.stack(predicted_matrices).abs().numpy()
+    fig, axes = plt.subplots(2, 2, figsize=(9, 8), constrained_layout=True)
+    for row in range(2):
+        for column in range(2):
+            ax = axes[row, column]
+            true_values, pred_values = truth[:, row, column], prediction[:, row, column]
+            valid = (true_values > 0) & (pred_values > 0)
+            omitted = int((~valid).sum())
+            if valid.any():
+                x, y = true_values[valid], pred_values[valid]
+                lower, upper = min(x.min(), y.min()), max(x.max(), y.max())
+                if lower == upper:
+                    lower, upper = lower / 2, upper * 2
+                ax.loglog(x, y, ".", markersize=4)
+                ax.loglog([lower, upper], [lower, upper], "-k", linewidth=1)
+                ax.set_xlim(lower, upper)
+                ax.set_ylim(lower, upper)
+                ax.set_aspect("equal", adjustable="box")
+            else:
+                ax.text(0.5, 0.5, "No positive pairs", ha="center", va="center",
+                        transform=ax.transAxes)
+            ax.set_xlabel(f"Ground truth |K{row + 1}{column + 1}|")
+            ax.set_ylabel(f"Predicted |K{row + 1}{column + 1}|")
+            ax.set_title(f"{int(valid.sum())} plotted; {omitted} zero pairs omitted")
+    path = output_dir / "K_comparison.png"
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    print(f"Saved permeability and {2 * min(sample_count, len(ids))} field plots to {output_dir}")
+    return result
+
+
+def evaluate_checkpoint(path, validation_dir, plot_dir=None, plot_samples=3):
     """Re-evaluate a trusted paired checkpoint using its saved normalizers."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     checkpoint = torch.load(path, map_location=device, weights_only=False)
     if checkpoint.get("format") != "bpmf-permeability-pair-v1":
         raise ValueError(f"{path} is not a paired permeability sweep checkpoint")
+    if (tuple(checkpoint["directions"]) != DIRECTIONS
+            or len(checkpoint["model_state_dicts"]) != len(DIRECTIONS)
+            or len(checkpoint["normalizers"]) != len(DIRECTIONS)
+            or any(len(pair) != 2 for pair in checkpoint["normalizers"])):
+        raise ValueError("Checkpoint does not contain the expected two ordered models and normalizers")
     models = [make_model().to(device) for _ in DIRECTIONS]
     for model, state in zip(models, checkpoint["model_state_dicts"]):
         model.load_state_dict(state)
@@ -223,7 +300,10 @@ def evaluate_checkpoint(path, validation_dir):
     expected_hash = checkpoint["config"]["validation_ids_sha256"]
     if dataset_hash(ids) != expected_hash:
         raise ValueError("Validation sample IDs differ from those used to select this checkpoint")
-    result = evaluate_pair(models, normalizers, (x, y), device)
+    if plot_dir is None:
+        result = evaluate_pair(models, normalizers, (x, y), device)
+    else:
+        result = plot_validation(models, normalizers, (x, y), ids, device, plot_dir, plot_samples)
     print(json.dumps(result, indent=2))
 
 
@@ -358,15 +438,29 @@ def main():
     parser.add_argument("--sweep-id", help="Resume an existing sweep instead of creating one")
     parser.add_argument("--evaluate", metavar="CHECKPOINT",
                         help="Evaluate a saved best_pair.pt instead of running a sweep")
+    parser.add_argument("--plots", action="store_true",
+                        help="With --evaluate, save permeability and velocity comparison plots")
+    parser.add_argument("--plot-dir", help="Plot output directory (default: plots beside checkpoint)")
+    parser.add_argument("--plot-samples", type=int,
+                        help="Number of validation samples to plot per direction (default: 3)")
     args = parser.parse_args()
     if args.hours <= 0 or not math.isfinite(args.hours) or args.validation_interval <= 0:
         parser.error("--hours and --validation-interval must be positive")
+    if args.plot_samples is not None and args.plot_samples <= 0:
+        parser.error("--plot-samples must be positive")
+    if (args.plots or args.plot_dir is not None or args.plot_samples is not None) and not args.evaluate:
+        parser.error("Plot options require --evaluate")
+    if (args.plot_dir is not None or args.plot_samples is not None) and not args.plots:
+        parser.error("--plot-dir and --plot-samples require --plots")
     data_root = Path(args.data_root).expanduser().resolve()
     train_dir, validation_dir = (data_root / "R64").resolve(), (data_root / "R64_unseen").resolve()
     if train_dir == validation_dir:
         parser.error("Training and validation directories must be different")
     if args.evaluate:
-        evaluate_checkpoint(args.evaluate, validation_dir)
+        plot_dir = None
+        if args.plots:
+            plot_dir = Path(args.plot_dir) if args.plot_dir else Path(args.evaluate).parent / "plots"
+        evaluate_checkpoint(args.evaluate, validation_dir, plot_dir, args.plot_samples or 3)
         return
     deadline = time.monotonic() + args.hours * 3600
     print(f"Loading all training samples from {train_dir} and validation samples from {validation_dir}", flush=True)

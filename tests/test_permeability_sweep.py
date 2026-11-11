@@ -2,6 +2,7 @@ import sys
 import tempfile
 import time
 import unittest
+import json
 from pathlib import Path
 from unittest import mock
 
@@ -170,11 +171,94 @@ class PermeabilitySweepTests(unittest.TestCase):
             with mock.patch.object(sweep, "load_fields", return_value=data), \
                  mock.patch("builtins.print") as output:
                 sweep.evaluate_checkpoint(path, "/data/R64_unseen")
-            import json
             result = json.loads(output.call_args.args[0])
             self.assertAlmostEqual(
                 result["relative_log_supremum"], run.summary[sweep.METRIC], places=6
             )
+            with mock.patch.object(sweep, "load_fields", return_value=data), \
+                 mock.patch("builtins.print") as output:
+                sweep.evaluate_checkpoint(path, "/data/R64_unseen", Path(directory) / "plots", 1)
+            plot_result = json.loads(output.call_args.args[0])
+            self.assertEqual(result, plot_result)
+            self.assertTrue((Path(directory) / "plots" / "K_comparison.png").is_file())
+
+    def test_checkpoint_plots_use_saved_normalizers_and_validation_data(self):
+        x = torch.ones(2, 1, 8, 8)
+        y = torch.zeros(2, 2, 8, 8)
+        y[:, 0], y[:, 1] = 1, 0.25
+        data = (["sample-a", "sample-b"], x, y)
+        fields = (sweep.rotate_fields(x, y), (x, y))
+        normalizers, models = [], []
+        for raw_x, raw_y in fields:
+            input_norm = sweep.fitted_normalizer(raw_x, True)
+            output_norm = sweep.fitted_normalizer(raw_y, True)
+            normalizers.append((input_norm, output_norm))
+            models.append(ConstantModel(output_norm.transform(raw_y[:1])[0, :, 0, 0]))
+        checkpoint = {
+            "format": "bpmf-permeability-pair-v1",
+            "directions": sweep.DIRECTIONS,
+            "model_state_dicts": [m.state_dict() for m in models],
+            "normalizers": [[sweep.normalizer_metadata(n) for n in pair] for pair in normalizers],
+            "config": {"validation_ids_sha256": sweep.dataset_hash(data[0])},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "best_pair.pt"
+            torch.save(checkpoint, path)
+            plot_dir = Path(directory) / "plots"
+            with mock.patch.object(sweep, "make_model", side_effect=lambda: ConstantModel(torch.zeros(2))), \
+                 mock.patch.object(sweep, "load_fields", return_value=data), \
+                 mock.patch("builtins.print") as output:
+                sweep.evaluate_checkpoint(path, "/data/R64_unseen", plot_dir, 1)
+            result = json.loads(output.call_args.args[0])
+            self.assertEqual(result["samples"], 2)
+            self.assertAlmostEqual(result["relative_log_supremum"], 0, places=5)
+            self.assertEqual({p.name for p in plot_dir.iterdir()},
+                             {"K_comparison.png", "sample_000_01.png", "sample_000_10.png"})
+            import matplotlib.image as mpimg
+            for image in plot_dir.iterdir():
+                self.assertGreater(mpimg.imread(image).var(), 0.001)
+            checkpoint["config"]["validation_ids_sha256"] = sweep.dataset_hash(["other"])
+            torch.save(checkpoint, path)
+            with mock.patch.object(sweep, "load_fields", return_value=data), \
+                 mock.patch.object(sweep, "make_model", side_effect=lambda: ConstantModel(torch.zeros(2))):
+                with self.assertRaisesRegex(ValueError, "Validation sample IDs differ"):
+                    sweep.evaluate_checkpoint(path, "/data/R64_unseen", plot_dir)
+
+    def test_invalid_pair_directions_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "best_pair.pt"
+            torch.save({"format": "bpmf-permeability-pair-v1",
+                        "directions": list(reversed(sweep.DIRECTIONS)),
+                        "model_state_dicts": [{}, {}], "normalizers": [[None, None]] * 2}, path)
+            with self.assertRaisesRegex(ValueError, "expected two ordered models"):
+                sweep.evaluate_checkpoint(path, "/data/R64_unseen")
+
+    def test_zero_permeability_entries_are_counted_in_plot(self):
+        x = torch.ones(1, 1, 8, 8)
+        y = torch.zeros(1, 2, 8, 8)
+        y[:, 0], y[:, 1] = 1, 0.25
+        x0, y0 = sweep.rotate_fields(x, y)
+        models = [ConstantModel(y0[0, :, 0, 0]), ConstantModel(y[0, :, 0, 0])]
+        matrix = torch.tensor([[2.0, 0.0], [0.0, 3.0]])
+        import matplotlib.pyplot as plt
+        real_subplots = plt.subplots
+        figures = []
+
+        def capture_figure(*args, **kwargs):
+            fig, axes = real_subplots(*args, **kwargs)
+            figures.append((fig, axes))
+            return fig, axes
+
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.object(sweep, "permeability_matrix", return_value=matrix), \
+                 mock.patch.object(plt, "subplots", side_effect=capture_figure):
+                result = sweep.plot_validation(models, [(None, None)] * 2, (x, y),
+                                               ["sample"], "cpu", directory, 1)
+            self.assertEqual(result["log_metric_floor_entries"], 2)
+            axes = figures[-1][1]
+            self.assertEqual(axes[0, 1].get_title(), "0 plotted; 1 zero pairs omitted")
+            self.assertEqual(axes[0, 1].texts[0].get_text(), "No positive pairs")
+            self.assertTrue((Path(directory) / "K_comparison.png").is_file())
 
 
 if __name__ == "__main__":
