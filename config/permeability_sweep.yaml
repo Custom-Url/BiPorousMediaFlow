@@ -1,6 +1,6 @@
 method: bayes
 metric:
-  name: permeability/best_relative_frobenius
+  name: permeability/best_relative_log_supremum
   goal: minimize
 parameters:
   learning_rate:

@@ -106,14 +106,17 @@ both models together every 10 epochs and at the final epoch; change the
 interval with `--validation-interval`. Validation uses normalizers fitted on
 the entire training dataset, not the validation dataset.
 
-The sweep objective, `permeability/best_relative_frobenius`, is the lowest
-validation mean of `||abs(K_pred)-abs(K_true)||_F / ||abs(K_true)||_F` seen
-in a run. It follows the existing evaluator's use of entrywise magnitudes,
-so it does **not** measure sign errors in K. K is reconstructed using both
-directions and a unit-square domain. Non-finite or singular permeability
-results fail the run rather than being silently omitted. Training still
-optimizes H1 loss; permeability is used for model selection, not as a
-training loss.
+The sweep objective, `permeability/best_relative_log_supremum`, is the lowest
+validation mean of the per-sample relative log-supremum error
+`max(abs(log(abs(K_pred))-log(abs(K_true)))) / max(abs(log(abs(K_true))))`
+seen in a run. This matches the target paper's definition using entrywise
+permeability magnitudes and therefore does **not** measure sign errors in K.
+The W&B history also includes median and 90th-percentile log-supremum errors,
+the relative Frobenius error, and per-direction velocity relative L2 errors.
+K is reconstructed using both directions and a unit-square domain.
+Non-finite or singular permeability results fail the run rather than being
+silently omitted. Training still optimizes H1 loss; permeability is used for
+model selection, not as a training loss.
 
 Each run saves its best *pair* of model weights and their fitted normalizers
 to `save_dir/permeability_sweep/<run-id>/best_pair.pt` and uploads it as a
@@ -134,8 +137,9 @@ final performance on a further independent test set.
 For ARIA, W&B receives the objective, per-direction relative L2 errors, training
 H1 losses, learning rate, best epoch, dataset counts and ID hashes, encoding
 settings, hyperparameters, and the paired checkpoint artifact. Open the sweep in
-W&B and ask ARIA to compare runs by `permeability/best_relative_frobenius`,
-including the validation L2 metrics and learning-rate/weight-decay settings.
+W&B and ask ARIA to compare runs by `permeability/best_relative_log_supremum`,
+including its median/p90, the Frobenius diagnostic, the validation L2 metrics,
+and learning-rate/weight-decay settings.
 
 ## License
 See [LICENSE.txt](LICENSE.txt) for license information.

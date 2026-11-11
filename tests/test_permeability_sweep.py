@@ -66,7 +66,7 @@ class PermeabilitySweepTests(unittest.TestCase):
     def test_relative_error_and_normalizers(self):
         x = torch.ones(2, 1, 8, 8)
         y = torch.zeros(2, 2, 8, 8)
-        y[:, 0] = 1
+        y[:, 0], y[:, 1] = 1, 0.25
         x0, y0 = sweep.rotate_fields(x, y)
         fields = ((x0, y0), (x, y))
         normalizers, models = [], []
@@ -94,11 +94,22 @@ class PermeabilitySweepTests(unittest.TestCase):
     def test_relative_frobenius_value(self):
         x = torch.ones(1, 1, 8, 8)
         y = torch.zeros(1, 2, 8, 8)
-        y[:, 0] = 1
-        models = [ConstantModel(torch.tensor([0.0, 2.0])),
-                  ConstantModel(torch.tensor([2.0, 0.0]))]
+        y[:, 0], y[:, 1] = 1, 0.2
+        models = [ConstantModel(torch.tensor([0.2, 2.0])),
+                  ConstantModel(torch.tensor([2.0, 0.2]))]
         result = sweep.evaluate_pair(models, [(None, None)] * 2, (x, y), torch.device("cpu"))
-        self.assertAlmostEqual(result["relative_frobenius"], 0.5, places=5)
+        self.assertGreater(result["relative_frobenius"], 0)
+        self.assertTrue(torch.isfinite(torch.tensor(result["relative_log_supremum"])))
+
+    def test_paper_log_supremum_definition(self):
+        truth = torch.tensor([[2.0, 0.5], [0.25, 4.0]])
+        prediction = truth.clone()
+        prediction[0, 0] *= 2
+        expected = torch.log(torch.tensor(2.0)) / torch.log(torch.tensor(4.0))
+        actual = sweep.relative_log_supremum(prediction, truth)
+        self.assertAlmostEqual(actual.item(), expected.item(), places=6)
+        with self.assertRaisesRegex(ValueError, "nonzero"):
+            sweep.relative_log_supremum(torch.zeros_like(truth), truth)
 
     def test_best_checkpoint_and_lr_decay(self):
         run = FakeRun()
@@ -106,12 +117,12 @@ class PermeabilitySweepTests(unittest.TestCase):
         y = torch.rand(4, 2, 8, 8) + 1
         data = (["a", "b", "c", "d"], x, y)
         results = [
-            {"relative_frobenius": 0.2, "relative_frobenius_median": 0.2,
-             "relative_frobenius_p90": 0.3, "relative_l2_01": 0.3,
-             "relative_l2_10": 0.4, "samples": 4},
-            {"relative_frobenius": 0.3, "relative_frobenius_median": 0.3,
-             "relative_frobenius_p90": 0.4, "relative_l2_01": 0.3,
-             "relative_l2_10": 0.4, "samples": 4},
+            {"relative_log_supremum": 0.2, "relative_log_supremum_median": 0.2,
+             "relative_log_supremum_p90": 0.3, "relative_frobenius": 0.4,
+             "relative_l2_01": 0.3, "relative_l2_10": 0.4, "samples": 4},
+            {"relative_log_supremum": 0.3, "relative_log_supremum_median": 0.3,
+             "relative_log_supremum_p90": 0.4, "relative_frobenius": 0.5,
+             "relative_l2_01": 0.3, "relative_l2_10": 0.4, "samples": 4},
         ]
         with tempfile.TemporaryDirectory() as directory:
             with mock.patch.object(sweep.wandb, "init", return_value=run), \
@@ -149,7 +160,9 @@ class PermeabilitySweepTests(unittest.TestCase):
                 sweep.evaluate_checkpoint(path, "/data/R64_unseen")
             import json
             result = json.loads(output.call_args.args[0])
-            self.assertAlmostEqual(result["relative_frobenius"], run.summary[sweep.METRIC], places=6)
+            self.assertAlmostEqual(
+                result["relative_log_supremum"], run.summary[sweep.METRIC], places=6
+            )
 
 
 if __name__ == "__main__":

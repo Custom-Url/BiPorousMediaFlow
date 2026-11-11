@@ -22,7 +22,7 @@ from utils.helpers import recon_pressure_grad_2d_fd
 
 ROOT = Path(__file__).resolve().parents[1]
 DIRECTIONS = ("[0,1]", "[1,0]")
-METRIC = "permeability/best_relative_frobenius"
+METRIC = "permeability/best_relative_log_supremum"
 
 
 def load_fields(directory):
@@ -95,11 +95,25 @@ def permeability_matrix(inputs, velocities, device):
     return torch.linalg.solve(matrix, torch.eye(2, device=device))
 
 
+def relative_log_supremum(predicted, truth):
+    """Relative supremum error on log magnitudes, as in the target paper."""
+    predicted, truth = predicted.abs(), truth.abs()
+    if not torch.isfinite(predicted).all() or not torch.isfinite(truth).all():
+        raise ValueError("Permeability matrices contain non-finite entries")
+    if (predicted <= 0).any() or (truth <= 0).any():
+        raise ValueError("Log-supremum metric requires nonzero permeability entries")
+    log_truth = torch.log(truth)
+    denominator = log_truth.abs().amax()
+    if denominator <= torch.finfo(log_truth.dtype).eps:
+        raise ValueError("Relative log-supremum denominator is zero")
+    return (torch.log(predicted) - log_truth).abs().amax() / denominator
+
+
 def evaluate_pair(models, normalizers, fields, device):
-    """Mean relative Frobenius error of |K|, matching the existing evaluator."""
+    """Evaluate permeability errors, including the paper's relative log-supremum J."""
     x1, y1 = fields
     x0, y0 = rotate_fields(x1, y1)
-    errors, l2_errors = [], [[], []]
+    log_sup_errors, frobenius_errors, l2_errors = [], [], [[], []]
     for model in models:
         model.eval()
     with torch.no_grad():
@@ -128,20 +142,25 @@ def evaluate_pair(models, normalizers, fields, device):
             except torch.linalg.LinAlgError as exc:
                 raise ValueError(f"Singular permeability matrix for validation sample {i}") from exc
             denominator = torch.linalg.matrix_norm(true_k.abs())
-            error = torch.linalg.matrix_norm(pred_k.abs() - true_k.abs()) / denominator
-            if not torch.isfinite(error):
+            frobenius_error = torch.linalg.matrix_norm(pred_k.abs() - true_k.abs()) / denominator
+            log_sup_error = relative_log_supremum(pred_k, true_k)
+            if not torch.isfinite(frobenius_error):
                 raise ValueError(f"Non-finite permeability error for validation sample {i}")
-            errors.append(error.item())
-    if not errors:
+            frobenius_errors.append(frobenius_error.item())
+            log_sup_errors.append(log_sup_error.item())
+    if not log_sup_errors:
         raise ValueError("Validation data is empty")
-    quantiles = torch.tensor(errors, dtype=torch.float64).quantile(torch.tensor([0.5, 0.9], dtype=torch.float64))
+    log_quantiles = torch.tensor(log_sup_errors, dtype=torch.float64).quantile(
+        torch.tensor([0.5, 0.9], dtype=torch.float64)
+    )
     return {
-        "relative_frobenius": sum(errors) / len(errors),
-        "relative_frobenius_median": quantiles[0].item(),
-        "relative_frobenius_p90": quantiles[1].item(),
-        "relative_l2_01": sum(l2_errors[0]) / len(errors),
-        "relative_l2_10": sum(l2_errors[1]) / len(errors),
-        "samples": len(errors),
+        "relative_log_supremum": sum(log_sup_errors) / len(log_sup_errors),
+        "relative_log_supremum_median": log_quantiles[0].item(),
+        "relative_log_supremum_p90": log_quantiles[1].item(),
+        "relative_frobenius": sum(frobenius_errors) / len(frobenius_errors),
+        "relative_l2_01": sum(l2_errors[0]) / len(log_sup_errors),
+        "relative_l2_10": sum(l2_errors[1]) / len(log_sup_errors),
+        "samples": len(log_sup_errors),
     }
 
 
@@ -220,7 +239,10 @@ def train_run(train_data, val_data, base, deadline, output_dir, validation_inter
             "validation_ids_sha256": dataset_hash(val_data[0]),
             "encode_input": base["data"]["encode_input"],
             "encode_output": base["data"]["encode_output"],
-            "validation_metric_definition": "mean ||abs(K_pred)-abs(K_true)||_F / ||abs(K_true)||_F",
+            "validation_metric_definition": (
+                "mean per-sample max(abs(log(abs(K_pred))-log(abs(K_true)))) "
+                "/ max(abs(log(abs(K_true))))"
+            ),
             "training_loss": "H1", "seed": 0, "validation_interval": validation_interval,
             "train_directory": str(data_root / "R64"),
             "validation_directory": str(data_root / "R64_unseen"),
@@ -259,11 +281,12 @@ def train_run(train_data, val_data, base, deadline, output_dir, validation_inter
                        "train/learning_rate": optimizers[0].param_groups[0]["lr"]}
             if epoch % validation_interval == 0 or epoch == int(cfg.epochs) or timed_out:
                 result = evaluate_pair(models, normalizers, val_data[1:], device)
-                score = result["relative_frobenius"]
+                score = result["relative_log_supremum"]
                 metrics.update({
-                    "permeability/relative_frobenius": score,
-                    "permeability/relative_frobenius_median": result["relative_frobenius_median"],
-                    "permeability/relative_frobenius_p90": result["relative_frobenius_p90"],
+                    "permeability/relative_log_supremum": score,
+                    "permeability/relative_log_supremum_median": result["relative_log_supremum_median"],
+                    "permeability/relative_log_supremum_p90": result["relative_log_supremum_p90"],
+                    "permeability/relative_frobenius": result["relative_frobenius"],
                     "validation/relative_l2_01": result["relative_l2_01"],
                     "validation/relative_l2_10": result["relative_l2_10"],
                     "validation/samples": result["samples"],
@@ -288,7 +311,7 @@ def train_run(train_data, val_data, base, deadline, output_dir, validation_inter
         run.summary["stopped_by_time_budget"] = time.monotonic() >= deadline
         run.summary[METRIC] = best
         artifact = wandb.Artifact(f"permeability-pair-{run.id}", type="model", metadata={
-            "best_epoch": run.summary["best_epoch"], "relative_frobenius": best,
+            "best_epoch": run.summary["best_epoch"], "relative_log_supremum": best,
             "directions": list(DIRECTIONS), "format": "bpmf-permeability-pair-v1",
         })
         artifact.add_file(str(best_path))
