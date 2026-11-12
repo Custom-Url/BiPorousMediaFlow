@@ -263,6 +263,21 @@ def train():
             "valid_loss_min": 0,
             "state_dict": model.state_dict(),
             "optimizer": optimizer.state_dict(),
+            "target_representation": "negative_pressure_gradient_over_mu",
+            "normalizers": {
+                name: (
+                    {
+                        "mean": normalizer.mean.detach().cpu(),
+                        "std": normalizer.std.detach().cpu(),
+                        "eps": normalizer.eps,
+                    }
+                    if normalizer is not None else None
+                )
+                for name, normalizer in (
+                    ("input", data_processor.in_normalizer),
+                    ("output", data_processor.out_normalizer),
+                )
+            },
         }
         os.makedirs(save_dir, exist_ok=True)
         torch.save(

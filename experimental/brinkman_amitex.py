@@ -12,6 +12,7 @@ from neuralop.data.datasets.tensor_dataset import TensorDataset
 from neuralop.layers.embeddings import GridEmbedding2D
 from neuralop.data.transforms.normalizers import UnitGaussianNormalizer
 from neuralop.data.transforms.data_processors import DefaultDataProcessor
+from utils.helpers import compute_laplacian_fd_2d
 
 np.random.seed(0)
 torch.manual_seed(0)
@@ -65,6 +66,42 @@ def load_velomap(dir0, idname, prefix="vmacro", velo_dir=1):
     return torch.tensor(np.array(vtiFieldReader(vti_name, components=[0, 1])))
 
 
+def velocity_to_permeability_latent(log_beta, velocity, L=(1, 1), mu=1):
+    """Return -grad(p)/mu as a two-channel spatial field.
+
+    log_beta is the loader's unnormalized input (B, 1, H, W), and
+    velocity has shape (B, 2, H, W). This uses the same finite differences
+    and beta convention as code/evaluate.py's compute_K.
+    """
+    if (velocity.ndim != 4 or velocity.shape[1] != 2 or
+            log_beta.shape != (velocity.shape[0], 1, *velocity.shape[-2:])):
+        raise ValueError("Expected log_beta (B, 1, H, W) and velocity (B, 2, H, W)")
+    if mu <= 0 or len(L) != 2 or any(length <= 0 for length in L):
+        raise ValueError("mu and both domain lengths must be positive")
+    height, width = velocity.shape[-2:]
+    laplacian = compute_laplacian_fd_2d(
+        velocity, dx=L[0] / height, dy=L[1] / width,
+        fix_x_bnd=True, fix_y_bnd=True,
+    )
+    return (10**log_beta * velocity - laplacian) / mu
+
+
+def macro_permeability_from_latent(latent1, latent2):
+    """Compute K from two corresponding, decoded latent fields.
+
+    Inputs have shape (B, 2, H, W); their spatial means are the columns
+    of the inverse-permeability matrix, in loading-condition order.
+    """
+    if (latent1.ndim != 4 or latent1.shape[1] != 2 or
+            latent1.shape != latent2.shape):
+        raise ValueError("Expected matching latent fields of shape (B, 2, H, W)")
+    inverse_permeability = torch.stack(
+        (latent1.mean(dim=(-2, -1)), latent2.mean(dim=(-2, -1))), dim=-1
+    )
+    identity = torch.eye(2, dtype=latent1.dtype, device=latent1.device)
+    return torch.linalg.solve(inverse_permeability, identity.expand_as(inverse_permeability))
+
+
 def load_stokesbrinkman(
     root_dir,
     n_train,
@@ -108,128 +145,6 @@ def load_stokesbrinkman(
     x = x.unsqueeze(1)  # BxCxWxHxD
     x[x > 0] = torch.log10(x[x > 0])  # log scale
     y = torch.stack([load_velomap(root_dir, idname, velo_dir=1) for idname in idnames])
-
-    ############################################################################################# 
-    print('y', y.shape)
-
-    
-    # Macro-permeability
-    pressureProvided = False
-
-    l2 = {}
-    mue = 1
-    mu = 1
-
-    l2 = ({}, {})
-    K11_true = []
-    K22_true = []
-    K12_true = []
-    K21_true = []
-
-    idx_RES = []
-    idx_SAM = []
-
-    for RES in RESs:
-        l2[0][RES] = []
-        l2[1][RES] = []
-        i = 0
-        for data1, data2 in zip(
-            test_loaders[0][RES][RES].dataset, test_loaders[1][RES][RES].dataset
-        ):
-            idx_RES.append(RES)
-            idx_SAM.append(i)
-            i = i + 1
-            # LOAD 1 and 2
-            data1 = _preprocess_sample(data_processor0, data1)
-            data2 = _preprocess_sample(data_processor1, data2)
-
-            # unpack data
-            x1, y1, out1 = unpack_data(
-                model=model0,
-                data=data1,
-                data_processor=data_processor0,
-                idir=0,
-                encode_output=None,
-            )
-            x2, y2, out2 = unpack_data(
-                model=model1,
-                data=data2,
-                data_processor=data_processor1,
-                idir=0,
-                encode_output=None,
-            )
-            data1["y"], data2["y"] = y1, y2
-            data1["x"], data2["x"] = x1, x2
-
-            # L2 difference norm
-            l2_0 = torch.sqrt(torch.sum((y1 - out1[0]) ** 2))
-            l2_1 = torch.sqrt(torch.sum((y2 - out2[0]) ** 2))
-            l2_y1 = torch.sqrt(torch.sum((y1) ** 2))
-            l2_y2 = torch.sqrt(torch.sum((y2) ** 2))
-            l2[0][RES].append((l2_0 / l2_y1).item())
-            l2[1][RES].append((l2_1 / l2_y2).item())
-            print(
-                f"RES {RES}, isample {i}, L2 norm: {l2[0][RES][-1]}, {l2[1][RES][-1]}"
-            )
-
-            # local pressure gradient field
-            pgrad1_true, _ = calc_pressure_grad_2d(
-                data1,
-                _,
-                mu=1,
-                mue=1,
-                L=[1, 1],
-                device=device,
-                inputEncoded=True,
-                pressureProvided=pressureProvided,
-            )
-            pgrad2_true, _ = calc_pressure_grad_2d(
-                data2,
-                _,
-                mu=1,
-                mue=1,
-                L=[1, 1],
-                device=device,
-                inputEncoded=True,
-                pressureProvided=pressureProvided,
-            )
-            # darcys law
-            H_true = torch.zeros((2, 2))
-            H_true[:, 0] = (
-                -torch.as_tensor(
-                    [
-                        torch.mean(pgrad1_true[:, i, :, :].flatten()).item()
-                        for i in range(2)
-                    ]
-                )
-                / mu
-            )
-            H_true[:, 1] = (
-                -torch.as_tensor(
-                    [
-                        torch.mean(pgrad2_true[:, i, :, :].flatten()).item()
-                        for i in range(2)
-                    ]
-                )
-                / mu
-            )
-
-
-            # macro permeability
-            try:
-                K_true = torch.linalg.solve(H_true, torch.eye(2))
-            except RuntimeError as e:
-                print("Skipping due to singular matrix", str(e))
-
-            # register
-            K11_true.append(abs(K_true[0, 0].cpu()))
-            K22_true.append(abs(K_true[1, 1].cpu()))
-            K12_true.append(abs(K_true[0, 1].cpu()))
-            K21_true.append(abs(K_true[1, 0].cpu()))
-
-
-    ############################################################################################# 
-
 
     indices = torch.randperm(len(x))
     idx_train = indices[:n_train]
@@ -286,6 +201,11 @@ def load_stokesbrinkman(
         y_test = torch.cat([y_test, y_test_transposed], dim=0)
     else:
         raise ValueError("Invalid loading condition")
+
+    for features, targets in ((x_train, y_train), (x_test, y_test)):
+        for start in range(0, len(targets), batch_size):
+            batch = slice(start, start + batch_size)
+            targets[batch] = velocity_to_permeability_latent(features[batch], targets[batch])
     test_batch_size = test_batch_sizes[0]
     test_resolution = test_resolutions[0]
 
