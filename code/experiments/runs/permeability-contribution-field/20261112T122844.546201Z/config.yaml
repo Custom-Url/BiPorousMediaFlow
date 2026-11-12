@@ -1,0 +1,44 @@
+seed: 0
+output_dir: code/experiments/runs
+experiment_names:
+  B: permeability-contribution-field
+  D: log-permeability-scalar
+physics:
+  viscosity: 1.0
+  pressure_gradient_source: reconstructed
+data:
+  root_dir: null
+  n_train: 700
+  n_tests: 100
+  train_resolution: 256
+  batch_size: 16
+  loading_cond: '[0,1]'
+  positional_encoding: true
+  encode_input: true
+  baseline_encode_output: true
+model:
+  type: tfno
+  n_modes:
+  - 32
+  - 32
+  in_channels: 1
+  hidden_channels: 32
+  projection_channels: 64
+  factorization: tucker
+  rank: 0.42
+training:
+  epochs: 10
+  learning_rate: 0.002
+  weight_decay: 1.0e-05
+  scheduler: StepLR
+  step_size: 1000
+  gamma: 0.2
+  scheduler_t_max: 500
+  scheduler_patience: 10
+wandb:
+  enabled: false
+  project: BPMF
+  entity: dylangray
+representation: B
+baseline_checkpoint: null
+target_velocity_component: 1

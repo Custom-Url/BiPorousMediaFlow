@@ -154,7 +154,7 @@ def train():
     # create a tensorised FNO model
     if cfg.model_type == "tfno":
         model = TFNO(
-            n_modes=(64, 64),
+            n_modes=(32, 32),
             in_channels=1,
             out_channels=2,
             hidden_channels=32,
