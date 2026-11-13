@@ -226,8 +226,9 @@ def load_outputs_loss_functions(
     Returns:
         Tensor array of model outputs for each checkpoint.
     """
+    n_samples = len(test_loader)
     out_arr = torch.zeros(
-        (len(model_checkpoint_arr) + 2, 100, 2, 64, 64), device=torch.device("cuda")
+        (len(model_checkpoint_arr) + 2, n_samples, 2, 64, 64), device=device
     )
 
     for i in range(len(model_checkpoint_arr) + 2):
@@ -325,7 +326,8 @@ def plot_images_grid(out_arr, idx=0):
                 fig.add_subplot(ax)
 
         plt.tight_layout()
-        plt.show()
+        fig.savefig(f"{FIGURES_DIR}/loss_grid_{k + 1}.png", dpi=300)
+        plt.close(fig)
 
 
 def compute_K(beta1, beta2, u1, u2, device, L=[1, 1]):
@@ -1301,6 +1303,27 @@ def run_images(checkpoint_path=None):
     print(f"Saved {FIGURES_DIR}/{CHECKPOINT}_last.png")
 
 
+def run_loss_grid(checkpoints, idx=0):
+    """Compare predictions of models trained with different losses on one test sample.
+
+    Needs 7 checkpoints, in this order: L2, H1, H1 beta u, H1 beta u Laplacian
+    (figure 1), then H2, H2 beta u, G (figure 2).
+    """
+    if len(checkpoints) != 7:
+        raise ValueError(f"grid needs exactly 7 checkpoints, got {len(checkpoints)}")
+    config = _read_config()
+    model, _ = load_trained_model(config, checkpoints[0])
+    test_loaders, data_processor = load_test_data(config)
+    test_samples = next(iter(test_loaders.values())).dataset
+    names = [
+        os.path.basename(_resolve_checkpoint(c)).replace("_last.pt", "")
+        for c in checkpoints
+    ]
+    out_arr = load_outputs_loss_functions(model, "", names, test_samples, data_processor)
+    plot_images_grid(out_arr, idx=idx)
+    print(f"Saved {FIGURES_DIR}/loss_grid_1.png and loss_grid_2.png")
+
+
 def run_best_sample(checkpoint_path=None):
     """Find the test sample with the lowest relative L2 loss."""
     config = _read_config()
@@ -1382,10 +1405,11 @@ if __name__ == "__main__":
         "command",
         nargs="?",
         default="l2",
-        choices=["l2", "images", "best", "unseen", "permeability", "beta"],
+        choices=["l2", "images", "best", "unseen", "permeability", "beta", "grid"],
         help="l2: mean relative L2 error (default); images: save prediction plots; "
         "best: lowest-loss test sample; unseen: R128 data; "
-        "permeability: macro-permeability (needs --ckpt0 and --ckpt1); beta: input histograms",
+        "permeability: macro-permeability (needs --ckpt0 and --ckpt1); beta: input histograms; "
+        "grid: loss-function comparison (needs --ckpts, 7 checkpoints)",
     )
     parser.add_argument(
         "--model", choices=["config", "fno", "tfno"], default="config",
@@ -1394,6 +1418,8 @@ if __name__ == "__main__":
     parser.add_argument("--ckpt", help="checkpoint file (default: newest in save_dir)")
     parser.add_argument("--ckpt0", help="checkpoint for loading condition U=[0,1]")
     parser.add_argument("--ckpt1", help="checkpoint for loading condition U=[1,0]")
+    parser.add_argument("--ckpts", nargs="+", help="7 checkpoints for 'grid'")
+    parser.add_argument("--sample", type=int, default=0, help="test sample for 'grid'")
     parser.add_argument("--loading-cond", default="[1,0]", help="for 'unseen'")
     args = parser.parse_args()
     MODEL_TYPE = args.model
@@ -1410,5 +1436,9 @@ if __name__ == "__main__":
         if not (args.ckpt0 and args.ckpt1):
             parser.error("permeability requires --ckpt0 and --ckpt1")
         run_permeability(args.ckpt0, args.ckpt1)
+    elif args.command == "grid":
+        if not args.ckpts:
+            parser.error("grid requires --ckpts")
+        run_loss_grid(args.ckpts, args.sample)
     elif args.command == "beta":
         plot_beta()
