@@ -258,76 +258,46 @@ def load_outputs_loss_functions(
     return out_arr
 
 
-def plot_images_grid(out_arr, idx=0):
+def plot_images_grid(out_arr, labels, idx=0, save_path=None):
     """
-    Plot a grid of images for model outputs and ground truth.
+    Plot input, ground truth and one prediction per model for a single sample.
 
     Args:
-        out_arr: Array of outputs to plot.
+        out_arr: Array (n_models + 2, n_samples, 2, H, W); entry 0 is the input,
+            entry 1 the ground truth, the rest are model predictions.
+        labels: One title per model prediction.
         idx: Index of the sample to visualize.
+        save_path: Optional path to save the figure.
     """
-    plt.rcParams["text.usetex"] = True
+    plt.rcParams["text.usetex"] = False
     plt.rcParams["font.family"] = "serif"
-    loss_arr_1 = [
-        r"$\log_{10} \beta$",
-        "GT",
-        r"$L^2$",
-        r"$H^1$",
-        r"$H^1 \beta u$",
-        r"$H^1 \beta u \Delta u$",
-    ]
-    loss_arr_2 = [
-        r"$\log_{10} \beta$",
-        "GT",
-        r"$H^2$",
-        r"$H^2 \beta u$",
-        r"G",
-    ]
-
-    for k in range(2):
-        if k == 0:
-            end = 6
-            loss_arr = loss_arr_1
-            fig, axes = plt.subplots(2, end, figsize=(15, 10))
-        else:
-            end = 5
-            loss_arr = loss_arr_2
-            fig, axes = plt.subplots(2, end, figsize=(15, 10))
-        for i in range(2):
-            for j in range(end):
-                ax = axes[i, j]
-                if j == 0:
-                    im = ax.imshow(
-                        out_arr[j, idx, i].detach().cpu().numpy(), cmap="gray"
-                    )
-                elif j == 1:
-                    im = ax.imshow(out_arr[j, idx, i].detach().cpu().numpy())
-                else:
-                    if k == 0:
-                        im = ax.imshow(out_arr[j, idx, i].detach().cpu().numpy())
-                    else:
-                        im = ax.imshow(out_arr[j + 4, idx, i].detach().cpu().numpy())
-
-                cbar = fig.colorbar(
-                    im, ax=ax, orientation="vertical", fraction=0.046, pad=0.04
-                )
-                cbar.formatter = ScalarFormatter(useMathText=True)
-                cbar.formatter.set_powerlimits((-3, 3))
-                cbar.update_ticks()
-                cbar.ax.tick_params(labelsize=8)
-                ax.set_title(f"{loss_arr[j]}")
-                ax.set_xticks([])
-                ax.set_yticks([])
-                if j == 1:
-                    if i % 2 == 0:
-                        ax.set_ylabel(r"$u_{1}$")
-                    else:
-                        ax.set_ylabel(r"$u_{2}$")
-                fig.add_subplot(ax)
-
-        plt.tight_layout()
-        fig.savefig(f"{FIGURES_DIR}/loss_grid_{k + 1}.png", dpi=300)
-        plt.close(fig)
+    titles = [r"$\log_{10} \beta$", "GT", *labels]
+    ncols = len(titles)
+    fig, axes = plt.subplots(2, ncols, figsize=(3 * ncols, 6), squeeze=False)
+    for i in range(2):
+        for j in range(ncols):
+            ax = axes[i, j]
+            im = ax.imshow(
+                out_arr[j, idx, i].detach().cpu().numpy(),
+                cmap="gray" if j == 0 else None,
+            )
+            cbar = fig.colorbar(
+                im, ax=ax, orientation="vertical", fraction=0.046, pad=0.04
+            )
+            cbar.formatter = ScalarFormatter(useMathText=True)
+            cbar.formatter.set_powerlimits((-3, 3))
+            cbar.update_ticks()
+            cbar.ax.tick_params(labelsize=8)
+            if i == 0:
+                ax.set_title(titles[j])
+            ax.set_xticks([])
+            ax.set_yticks([])
+            if j == 1:
+                ax.set_ylabel(rf"$u_{{{i + 1}}}$")
+    plt.tight_layout()
+    if save_path is not None:
+        fig.savefig(save_path, dpi=300)
+    plt.close(fig)
 
 
 def compute_K(beta1, beta2, u1, u2, device, L=[1, 1]):
@@ -1237,7 +1207,7 @@ def load_trained_model(config, checkpoint_path=None, model_type=None):
     return model, checkpoint_path
 
 
-def load_test_data(config):
+def load_test_data(config, loading_cond="[1,0]"):
     """Load the test set with the same settings train.py used."""
     root_dir = os.path.join(DATA_ROOT, "R64")
     if not os.path.isdir(root_dir):
@@ -1256,6 +1226,7 @@ def load_test_data(config):
         positional_encoding=config.data.positional_encoding,
         encode_input=config.data.encode_input,
         encode_output=config.data.encode_output,
+        loading_cond=loading_cond,
     )
     data_processor = data_processor.to(device)
     data_processor.eval()  # un-normalize outputs, keep targets raw
@@ -1303,25 +1274,26 @@ def run_images(checkpoint_path=None):
     print(f"Saved {FIGURES_DIR}/{CHECKPOINT}_last.png")
 
 
-def run_loss_grid(checkpoints, idx=0):
-    """Compare predictions of models trained with different losses on one test sample.
+def run_loss_grid(checkpoints, labels=None, idx=0, loading_cond="[1,0]"):
+    """Compare any number of models against the ground truth for one test sample.
 
-    Needs 7 checkpoints, in this order: L2, H1, H1 beta u, H1 beta u Laplacian
-    (figure 1), then H2, H2 beta u, G (figure 2).
+    All checkpoints must have been trained with the same loading condition.
     """
-    if len(checkpoints) != 7:
-        raise ValueError(f"grid needs exactly 7 checkpoints, got {len(checkpoints)}")
+    labels = labels or [os.path.basename(c).replace("_last.pt", "") for c in checkpoints]
+    if len(labels) != len(checkpoints):
+        raise ValueError("--labels must match the number of --ckpts")
     config = _read_config()
     model, _ = load_trained_model(config, checkpoints[0])
-    test_loaders, data_processor = load_test_data(config)
+    test_loaders, data_processor = load_test_data(config, loading_cond)
     test_samples = next(iter(test_loaders.values())).dataset
     names = [
         os.path.basename(_resolve_checkpoint(c)).replace("_last.pt", "")
         for c in checkpoints
     ]
     out_arr = load_outputs_loss_functions(model, "", names, test_samples, data_processor)
-    plot_images_grid(out_arr, idx=idx)
-    print(f"Saved {FIGURES_DIR}/loss_grid_1.png and loss_grid_2.png")
+    save_path = os.path.join(FIGURES_DIR, f"model_grid_{loading_cond.strip('[]').replace(',', '')}.png")
+    plot_images_grid(out_arr, labels, idx=idx, save_path=save_path)
+    print(f"Saved {save_path}")
 
 
 def run_best_sample(checkpoint_path=None):
@@ -1409,7 +1381,7 @@ if __name__ == "__main__":
         help="l2: mean relative L2 error (default); images: save prediction plots; "
         "best: lowest-loss test sample; unseen: R128 data; "
         "permeability: macro-permeability (needs --ckpt0 and --ckpt1); beta: input histograms; "
-        "grid: loss-function comparison (needs --ckpts, 7 checkpoints)",
+        "grid: compare several models vs ground truth (needs --ckpts, same loading condition)",
     )
     parser.add_argument(
         "--model", choices=["config", "fno", "tfno"], default="config",
@@ -1418,9 +1390,10 @@ if __name__ == "__main__":
     parser.add_argument("--ckpt", help="checkpoint file (default: newest in save_dir)")
     parser.add_argument("--ckpt0", help="checkpoint for loading condition U=[0,1]")
     parser.add_argument("--ckpt1", help="checkpoint for loading condition U=[1,0]")
-    parser.add_argument("--ckpts", nargs="+", help="7 checkpoints for 'grid'")
+    parser.add_argument("--ckpts", nargs="+", help="checkpoints for 'grid'")
+    parser.add_argument("--labels", nargs="+", help="column titles for 'grid' (one per ckpt)")
     parser.add_argument("--sample", type=int, default=0, help="test sample for 'grid'")
-    parser.add_argument("--loading-cond", default="[1,0]", help="for 'unseen'")
+    parser.add_argument("--loading-cond", default="[1,0]", help="for 'unseen' and 'grid'")
     args = parser.parse_args()
     MODEL_TYPE = args.model
 
@@ -1439,6 +1412,6 @@ if __name__ == "__main__":
     elif args.command == "grid":
         if not args.ckpts:
             parser.error("grid requires --ckpts")
-        run_loss_grid(args.ckpts, args.sample)
+        run_loss_grid(args.ckpts, args.labels, args.sample, args.loading_cond)
     elif args.command == "beta":
         plot_beta()
