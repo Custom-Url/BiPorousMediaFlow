@@ -1187,7 +1187,7 @@ def build_model(config, model_type="config"):
     """
     if model_type == "tfno":
         return TFNO(
-            n_modes=(64, 64), in_channels=1, out_channels=2, hidden_channels=32,
+            n_modes=(32, 32), in_channels=1, out_channels=2, hidden_channels=32,
             projection_channels=64, factorization="tucker", rank=0.42,
         ).to(device)
     if model_type == "fno":

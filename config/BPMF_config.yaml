@@ -102,7 +102,7 @@ default: &DEFAULT
       n_train:
         values: [700]
       loading_cond:
-        values: ["[0,1]"]
+        values: ["[1,0]"]
       model_type:
         values: ["tfno"]
     early_terminate:
