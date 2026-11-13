@@ -13,6 +13,8 @@ from neuralop.layers.embeddings import GridEmbedding2D
 from neuralop.data.transforms.normalizers import UnitGaussianNormalizer
 from neuralop.data.transforms.data_processors import DefaultDataProcessor
 
+import matplotlib.pyplot as plt
+
 np.random.seed(0)
 torch.manual_seed(0)
 
@@ -114,64 +116,60 @@ def load_stokesbrinkman(
     n_test = n_tests  # currently, only 1 resolution possible
     idx_test = indices[n_train : n_train + n_test]  # Randomly picking train and test
 
-    if loading_cond == "[1,0]":
-        x_train = x[idx_train, :, :, :, 0].float().clone()
-        y_train = y[idx_train, :, :, :, 0].float().clone()
+    ##########################################
+    # Defining x and y for loading cond = 1,0
+    ##########################################
+    x_train10 = x[idx_train, :, :, :, 0].float().clone()
+    y_train10 = y[idx_train, :, :, :, 0].float().clone()
 
-        x_test = x[idx_test, :, :, :, 0].float().clone()
-        y_test = y[idx_test, :, :, :, 0].float().clone()
+    x_test10 = x[idx_test, :, :, :, 0].float().clone()
+    y_test10 = y[idx_test, :, :, :, 0].float().clone()
 
-    elif loading_cond == "[0,1]":
-        x_train = x[idx_train, :, :, :, 0].float().clone()
-        y_train = y[idx_train, :, :, :, 0].float().clone()
+    
+    ##########################################
+    # Defining x and y for loading cond = 0,1
+    ##########################################
+    x_train01 = x[idx_train, :, :, :, 0].float().clone()
+    y_train01 = y[idx_train, :, :, :, 0].float().clone()
 
-        x_test = x[idx_test, :, :, :, 0].float().clone()
-        y_test = y[idx_test, :, :, :, 0].float().clone()
+    x_test01 = x[idx_test, :, :, :, 0].float().clone()
+    y_test01 = y[idx_test, :, :, :, 0].float().clone()
 
-        x_train = torch.rot90(x_train, k=1, dims=[-2, -1])  # 90° CCW
-        x_test  = torch.rot90(x_test, k=1, dims=[-2, -1])
+    x_train01 = torch.rot90(x_train01, k=1, dims=[-2, -1])  # 90° CCW
+    x_test01  = torch.rot90(x_test01, k=1, dims=[-2, -1])
 
-        y_train = torch.rot90(y_train, k=1, dims=[-2, -1])
-        y_test = torch.rot90(y_test, k=1, dims=[-2, -1])
+    y_train01 = torch.rot90(y_train01, k=1, dims=[-2, -1])
+    y_test01 = torch.rot90(y_test01, k=1, dims=[-2, -1])
 
-        # Step 2: Rotate vector components: (u_x, u_y) → (-u_y, u_x)
-        u_x_train, u_y_train = y_train[:, 0], y_train[:, 1]
-        u_x_test,  u_y_test  = y_test[:, 0], y_test[:, 1]
+    # Step 2: Rotate vector components: (u_x, u_y) → (-u_y, u_x)
+    u_x_train01, u_y_train01 = y_train01[:, 0], y_train01[:, 1]
+    u_x_test01,  u_y_test01  = y_test01[:, 0], y_test01[:, 1]
 
-        u_x_train_rot = -u_y_train
-        u_y_train_rot =  u_x_train
-        u_x_test_rot  = -u_y_test
-        u_y_test_rot  =  u_x_test
+    u_x_train_rot01 = -u_y_train01
+    u_y_train_rot01 =  u_x_train01
+    u_x_test_rot01  = -u_y_test01
+    u_y_test_rot01  =  u_x_test01
 
-        # Reassemble rotated vector field
-        y_train = torch.stack([u_x_train_rot, u_y_train_rot], dim=1)
-        y_test  = torch.stack([u_x_test_rot,  u_y_test_rot], dim=1)
+    # Reassemble rotated vector field
+    y_train01 = torch.stack([u_x_train_rot01, u_y_train_rot01], dim=1)
+    y_test01  = torch.stack([u_x_test_rot01,  u_y_test_rot01], dim=1)
 
-
-    elif loading_cond == "both":
-        x_train = x[idx_train, :, :, :, 0].float().clone()
-        y_train = y[idx_train, :, :, :, 0].float().clone()
-        x_train_transposed = torch.transpose(x_train, -2, -1)
-        x_train = torch.cat([x_train, x_train_transposed], dim=0)
-        y_train_transposed = torch.transpose(y_train, -2, -1)
-        y_train = torch.cat([y_train, y_train_transposed], dim=0)
-
-        x_test = x[idx_test, :, :, :, 0].float().clone()
-        y_test = y[idx_test, :, :, :, 0].float().clone()
-        x_test_transposed = torch.transpose(x_test, -2, -1)
-        x_test = torch.cat([x_test, x_test_transposed], dim=0)
-        y_test_transposed = torch.transpose(y_test, -2, -1)
-        y_test = torch.cat([y_test, y_test_transposed], dim=0)
-    else:
-        raise ValueError("Invalid loading condition")
     test_batch_size = test_batch_sizes[0]
     test_resolution = test_resolutions[0]
 
+    # Plotting x and y for both loading conditions
+    fig, axs = plt.subplots(2, 2, figsize=(10, 10))
+    axs[0, 0].imshow(x_train10[0, 0].numpy(), cmap='viridis')
+    axs[0, 0].set_title('x_train (loading_cond [1,0])')
+    axs[0, 1].imshow(y_train10[0, 0].numpy(), cmap='viridis')
+    axs[0, 1].set_title('y_train (loading_cond [1,0])')
+    axs[1, 0].imshow(x_train01[0, 0].numpy(), cmap='viridis')
+    axs[1, 0].set_title('x_train (loading_cond [0,1])')
+    axs[1, 1].imshow(y_train01[0, 0].numpy(), cmap='viridis')
+    axs[1, 1].set_title('y_train (loading_cond [0,1])')
+    plt.tight_layout()
+    plt.show()
 
-    print('x_train', x_train.shape)
-    print('y_train', y_train.shape)
-    print('x_test', x_test.shape)
-    print('y_test', y_test.shape)
 
     # Input encoding
     if encode_input:
